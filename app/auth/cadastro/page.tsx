@@ -33,6 +33,7 @@ export default function CadastroPage() {
     setCarregando(true)
     setErro(null)
 
+    // 1. Criar a conta
     const { data, error } = await supabase.auth.signUp({
       email:    dados.email,
       password: dados.senha,
@@ -47,6 +48,20 @@ export default function CadastroPage() {
       return
     }
 
+    // 2. Login automático após cadastro
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email:    dados.email,
+      password: dados.senha,
+    })
+
+    if (loginError) {
+      setErro('Conta criada! Faça login para continuar.')
+      setCarregando(false)
+      router.push('/auth/login')
+      return
+    }
+
+    // 3. Criar o perfil
     if (data.user) {
       await supabase.from('profiles').insert({
         id:   data.user.id,
@@ -54,7 +69,9 @@ export default function CadastroPage() {
       })
     }
 
+    // 4. Ir para onboarding
     router.push('/onboarding')
+    router.refresh()
   }
 
   const inputClass = (temErro: boolean) =>
