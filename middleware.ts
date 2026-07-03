@@ -18,20 +18,11 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const path = request.nextUrl.pathname
-
-  if (!user && path.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
-  }
-
-  if (user && path.startsWith('/auth')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
+  await supabase.auth.getUser()
 
   return response
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/auth/:path*'],
+  matcher: ['/dashboard/:path*', '/auth/:path*', '/onboarding/:path*'],
 }

@@ -66,7 +66,7 @@ export default function OnboardingPage() {
       return
     }
 
-    router.push('/dashboard')
+    window.location.href = '/dashboard'
   }
 
   const inputClass = (temErro: boolean) =>

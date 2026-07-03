@@ -69,9 +69,8 @@ export default function CadastroPage() {
       })
     }
 
-    // 4. Ir para onboarding
-    router.push('/onboarding')
-    router.refresh()
+   // 4. Ir para onboarding
+    window.location.href = '/onboarding'
   }
 
   const inputClass = (temErro: boolean) =>
