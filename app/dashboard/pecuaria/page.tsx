@@ -45,10 +45,9 @@ export default function PecuariaPage() {
   const router   = useRouter()
   const supabase = createClient()
 
-  const [animais,  setAnimais]  = useState<Animal[]>([])
-  const [fazendaId, setFazendaId] = useState<string | null>(null)
-  const [loading,  setLoading]  = useState(true)
-  const [busca,    setBusca]    = useState('')
+  const [animais,    setAnimais]    = useState<Animal[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [busca,      setBusca]      = useState('')
   const [filtroSexo, setFiltroSexo] = useState<'todos' | 'M' | 'F'>('todos')
 
   useEffect(() => { carregarDados() }, [])
@@ -61,7 +60,6 @@ export default function PecuariaPage() {
       .from('fazendas').select('id')
       .eq('owner_id', user.id).single()
     if (!faz) { router.push('/onboarding'); return }
-    setFazendaId(faz.id)
 
     const { data } = await supabase
       .from('animais')
@@ -76,7 +74,7 @@ export default function PecuariaPage() {
 
   const animaisFiltrados = animais.filter(a => {
     const termo = busca.toLowerCase()
-    const bate  = !busca || 
+    const bate  = !busca ||
       a.nome?.toLowerCase().includes(termo) ||
       a.brinco?.toLowerCase().includes(termo) ||
       a.raca?.toLowerCase().includes(termo)
@@ -93,11 +91,10 @@ export default function PecuariaPage() {
   return (
     <div className="min-h-screen bg-[#F5F2EB]">
 
-      {/* Header */}
       <header className="bg-[#2D5016] px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push('/dashboard')} className="text-white/70 hover:text-white transition">
-            ← 
+            ←
           </button>
           <Logo size={28} />
           <div>
@@ -154,18 +151,19 @@ export default function PecuariaPage() {
           </div>
         )}
 
-        {/* Lista de animais */}
+        {/* Lista vertical de animais */}
         {animaisFiltrados.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-3">
             {animaisFiltrados.map(animal => (
               <button
                 key={animal.id}
                 onClick={() => router.push(`/dashboard/pecuaria/${animal.id}`)}
                 className="bg-white rounded-xl border border-stone-200 overflow-hidden
-                  text-left hover:shadow-md hover:border-amber-300 transition active:scale-95"
+                  text-left hover:shadow-md hover:border-amber-300 transition active:scale-95
+                  flex items-center gap-4 p-3"
               >
                 {/* Foto */}
-                <div className="aspect-square bg-amber-50 relative overflow-hidden">
+                <div className="w-20 h-20 rounded-xl bg-amber-50 overflow-hidden shrink-0 relative">
                   {animal.foto_url ? (
                     <img
                       src={animal.foto_url}
@@ -174,39 +172,38 @@ export default function PecuariaPage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-4xl">
-                        {animal.sexo === 'M' ? '🐂' : '🐄'}
-                      </span>
+                      <span className="text-3xl">{animal.sexo === 'M' ? '🐂' : '🐄'}</span>
                     </div>
                   )}
-                  {/* Badge sexo */}
-                  <span className={`absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded-full
+                  <span className={`absolute top-1 right-1 text-xs font-bold px-1 py-0.5 rounded-full
                     ${animal.sexo === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
                     {animal.sexo === 'M' ? 'M' : 'F'}
                   </span>
                 </div>
 
-                {/* Info */}
-                <div className="p-3">
+                {/* Dados */}
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-stone-800 truncate">
                     {animal.nome ?? animal.brinco ?? '—'}
                   </p>
                   {animal.brinco && animal.nome && (
-                    <p className="text-xs text-stone-400 truncate">#{animal.brinco}</p>
+                    <p className="text-xs text-stone-400">#{animal.brinco}</p>
                   )}
                   {animal.raca && (
-                    <p className="text-xs text-stone-500 mt-0.5 truncate">{animal.raca}</p>
+                    <p className="text-xs text-stone-500 mt-0.5">{animal.raca}</p>
                   )}
                   {animal.data_nascimento && (
                     <p className="text-xs text-amber-600 mt-1 font-medium">
                       {calcularIdade(animal.data_nascimento)}
                     </p>
                   )}
-                  <span className={`inline-block mt-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium
+                  <span className={`inline-block mt-1 text-xs px-1.5 py-0.5 rounded-full font-medium
                     ${animal.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
                     {animal.status}
                   </span>
                 </div>
+
+                <span className="text-stone-300 text-lg shrink-0">›</span>
               </button>
             ))}
           </div>
