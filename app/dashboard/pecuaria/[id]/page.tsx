@@ -34,14 +34,14 @@ type Evento = {
 }
 
 const TIPO_EMOJI: Record<string, string> = {
-  vacinacao:   '💉',
-  pesagem:     '⚖️',
-  tratamento:  '🩺',
-  reproducao:  '🔬',
-  parto:       '🐄',
-  venda:       '💰',
-  morte:       '❌',
-  outro:       '📋',
+  vacinacao:  '💉',
+  pesagem:    '⚖️',
+  tratamento: '🩺',
+  reproducao: '🔬',
+  parto:      '🐄',
+  venda:      '💰',
+  morte:      '❌',
+  outro:      '📋',
 }
 
 function calcularIdade(dataNascimento: string): string {
@@ -65,10 +65,10 @@ export default function AnimalPage() {
   const supabase = createClient()
   const id       = params.id as string
 
-  const [animal,   setAnimal]   = useState<Animal | null>(null)
-  const [eventos,  setEventos]  = useState<Evento[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [abaAtiva, setAbaAtiva] = useState<'perfil' | 'historico'>('perfil')
+  const [animal,     setAnimal]     = useState<Animal | null>(null)
+  const [eventos,    setEventos]    = useState<Evento[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [abaAtiva,   setAbaAtiva]   = useState<'perfil' | 'historico'>('perfil')
   const [novoEvento, setNovoEvento] = useState(false)
   const [tipoEvento, setTipoEvento] = useState('vacinacao')
   const [dataEvento, setDataEvento] = useState(new Date().toISOString().split('T')[0])
@@ -82,8 +82,7 @@ export default function AnimalPage() {
 
   async function carregarDados() {
     const { data: animalData } = await supabase
-      .from('animais')
-      .select('*, lotes_animais(nome, especie)')
+      .from('animais').select('*, lotes_animais(nome, especie)')
       .eq('id', id).single()
     setAnimal(animalData as any)
 
@@ -145,113 +144,109 @@ export default function AnimalPage() {
   return (
     <div className="min-h-screen bg-[#F5F2EB]">
 
-      {/* Header com foto */}
-      <div className="relative">
-        <div className="h-52 bg-amber-100 overflow-hidden">
-          {animal.foto_url ? (
-            <img src={animal.foto_url} alt={animal.nome ?? 'Animal'} className="w-full h-full object-cover"/>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="text-8xl opacity-30">{animal.sexo === 'M' ? '🐂' : '🐄'}</span>
+      {/* Header simples */}
+      <header className="bg-[#2D5016] px-4 py-4 flex items-center gap-3">
+        <button onClick={() => router.back()} className="text-white/70 hover:text-white transition">←</button>
+        <div>
+          <p className="text-white font-semibold text-sm leading-none">
+            {animal.nome ?? animal.brinco ?? 'Perfil do animal'}
+          </p>
+          <p className="text-white/60 text-xs mt-0.5">Pecuária</p>
+        </div>
+      </header>
+
+      <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+
+        {/* Card de identificação — foto + dados lado a lado */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-4">
+          <div className="flex gap-4 items-start">
+
+            {/* Foto */}
+            <div className="w-28 h-28 rounded-xl bg-amber-50 overflow-hidden shrink-0 relative">
+              {animal.foto_url ? (
+                <img
+                  src={animal.foto_url}
+                  alt={animal.nome ?? 'Animal'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-5xl">{animal.sexo === 'M' ? '🐂' : '🐄'}</span>
+                </div>
+              )}
+              <span className={`absolute bottom-1 right-1 text-xs font-bold px-1.5 py-0.5 rounded-full
+                ${animal.sexo === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                {animal.sexo === 'M' ? '♂' : '♀'}
+              </span>
             </div>
-          )}
-          {/* Overlay escuro no topo */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-transparent"/>
-        </div>
 
-        {/* Botão voltar */}
-        <button
-          onClick={() => router.back()}
-          className="absolute top-4 left-4 bg-black/30 hover:bg-black/50 text-white rounded-full w-9 h-9 flex items-center justify-center transition"
-        >
-          ←
-        </button>
+            {/* Dados principais */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <h1 className="text-lg font-bold text-stone-900 leading-tight">
+                  {animal.nome ?? animal.brinco ?? 'Sem identificação'}
+                </h1>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0
+                  ${animal.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
+                  {animal.status}
+                </span>
+              </div>
 
-        {/* Badge sexo */}
-        <span className={`absolute top-4 right-4 text-xs font-bold px-2.5 py-1 rounded-full
-          ${animal.sexo === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-          {animal.sexo === 'M' ? '♂ Macho' : '♀ Fêmea'}
-        </span>
-      </div>
-
-      {/* Identificação */}
-      <div className="bg-white px-5 py-4 border-b border-stone-100">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-stone-900">
-              {animal.nome ?? animal.brinco ?? 'Sem identificação'}
-            </h1>
-            {animal.brinco && animal.nome && (
-              <p className="text-sm text-stone-400">Brinco #{animal.brinco}</p>
-            )}
-            {animal.raca && (
-              <p className="text-sm text-[#5C7A45] font-medium mt-0.5">{animal.raca}</p>
-            )}
+              {animal.brinco && animal.nome && (
+                <p className="text-xs text-stone-400 mt-0.5">Brinco #{animal.brinco}</p>
+              )}
+              {animal.raca && (
+                <p className="text-sm text-[#5C7A45] font-medium mt-1">{animal.raca}</p>
+              )}
+              {animal.data_nascimento && (
+                <div className="mt-2 space-y-0.5">
+                  <p className="text-xs text-stone-500">Nascimento: {formatarData(animal.data_nascimento)}</p>
+                  <p className="text-xs font-semibold text-amber-600">{calcularIdade(animal.data_nascimento)}</p>
+                </div>
+              )}
+              {animal.peso_entrada_kg && (
+                <p className="text-xs text-stone-500 mt-1">
+                  Peso entrada: <span className="font-medium text-stone-700">{animal.peso_entrada_kg} kg</span>
+                </p>
+              )}
+              {animal.lotes_animais && (
+                <p className="text-xs text-stone-500 mt-1">
+                  Lote: <span className="font-medium text-stone-700">{animal.lotes_animais.nome}</span>
+                </p>
+              )}
+            </div>
           </div>
-          <span className={`text-xs font-medium px-2.5 py-1 rounded-full mt-1
-            ${animal.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
-            {animal.status}
-          </span>
         </div>
-      </div>
 
-      {/* Abas */}
-      <div className="bg-white border-b border-stone-200 flex">
-        {(['perfil', 'historico'] as const).map(aba => (
-          <button
-            key={aba}
-            onClick={() => setAbaAtiva(aba)}
-            className={`flex-1 py-3 text-sm font-medium transition
-              ${abaAtiva === aba
-                ? 'text-[#2D5016] border-b-2 border-[#2D5016]'
-                : 'text-stone-400 hover:text-stone-600'}`}
-          >
-            {aba === 'perfil' ? '📋 Perfil' : `📅 Histórico (${eventos.length})`}
-          </button>
-        ))}
-      </div>
-
-      <main className="max-w-lg mx-auto px-4 py-5">
+        {/* Abas */}
+        <div className="bg-white rounded-xl border border-stone-200 flex overflow-hidden">
+          {(['perfil', 'historico'] as const).map(aba => (
+            <button
+              key={aba}
+              onClick={() => setAbaAtiva(aba)}
+              className={`flex-1 py-3 text-sm font-medium transition
+                ${abaAtiva === aba
+                  ? 'text-[#2D5016] border-b-2 border-[#2D5016] bg-[#2D5016]/5'
+                  : 'text-stone-400 hover:text-stone-600'}`}
+            >
+              {aba === 'perfil' ? '📋 Perfil' : `📅 Histórico (${eventos.length})`}
+            </button>
+          ))}
+        </div>
 
         {/* ABA PERFIL */}
         {abaAtiva === 'perfil' && (
           <div className="space-y-4">
 
-            {/* Dados básicos */}
-            <section className="bg-white rounded-2xl border border-stone-200 divide-y divide-stone-100">
-              {animal.data_nascimento && (
-                <div className="flex justify-between items-center px-5 py-3.5">
-                  <p className="text-sm text-stone-500">Data de nascimento</p>
-                  <p className="text-sm font-medium text-stone-800">{formatarData(animal.data_nascimento)}</p>
-                </div>
-              )}
-              {animal.data_nascimento && (
-                <div className="flex justify-between items-center px-5 py-3.5">
-                  <p className="text-sm text-stone-500">Idade</p>
-                  <p className="text-sm font-medium text-amber-600">{calcularIdade(animal.data_nascimento)}</p>
-                </div>
-              )}
-              {animal.peso_entrada_kg && (
-                <div className="flex justify-between items-center px-5 py-3.5">
-                  <p className="text-sm text-stone-500">Peso de entrada</p>
-                  <p className="text-sm font-medium text-stone-800">{animal.peso_entrada_kg} kg</p>
-                </div>
-              )}
-              {animal.sisbov && (
+            {animal.sisbov && (
+              <section className="bg-white rounded-2xl border border-stone-200 divide-y divide-stone-100">
                 <div className="flex justify-between items-center px-5 py-3.5">
                   <p className="text-sm text-stone-500">SISBOV</p>
                   <p className="text-sm font-medium text-stone-800">{animal.sisbov}</p>
                 </div>
-              )}
-              {animal.lotes_animais && (
-                <div className="flex justify-between items-center px-5 py-3.5">
-                  <p className="text-sm text-stone-500">Lote</p>
-                  <p className="text-sm font-medium text-stone-800">{animal.lotes_animais.nome}</p>
-                </div>
-              )}
-            </section>
+              </section>
+            )}
 
-            {/* Reprodução — só fêmeas */}
             {animal.sexo === 'F' && (
               <section className="bg-white rounded-2xl border border-stone-200">
                 <div className="px-5 py-3 border-b border-stone-100">
@@ -283,7 +278,6 @@ export default function AnimalPage() {
               </section>
             )}
 
-            {/* Observações */}
             {animal.observacoes && (
               <section className="bg-white rounded-2xl border border-stone-200 p-5">
                 <p className="text-sm font-semibold text-stone-700 mb-2">📝 Observações</p>
@@ -297,7 +291,6 @@ export default function AnimalPage() {
         {abaAtiva === 'historico' && (
           <div className="space-y-4">
 
-            {/* Botão novo evento */}
             <button
               onClick={() => setNovoEvento(!novoEvento)}
               className="w-full rounded-xl bg-[#2D5016] text-white text-sm font-medium py-3 hover:bg-[#3a6620] transition"
@@ -305,7 +298,6 @@ export default function AnimalPage() {
               + Registrar evento
             </button>
 
-            {/* Form novo evento */}
             {novoEvento && (
               <div className="bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
                 <p className="text-sm font-semibold text-stone-700">Novo evento</p>
@@ -401,7 +393,6 @@ export default function AnimalPage() {
               </div>
             )}
 
-            {/* Lista de eventos */}
             {eventos.length === 0 ? (
               <div className="bg-white rounded-xl border border-dashed border-stone-300 p-8 text-center">
                 <p className="text-sm text-stone-400">Nenhum evento registrado ainda.</p>
@@ -423,7 +414,9 @@ export default function AnimalPage() {
                         <p className="text-xs text-amber-600 mt-0.5 font-medium">⚖️ {ev.peso_medio_kg} kg</p>
                       )}
                       {ev.medicamento && (
-                        <p className="text-xs text-stone-500 mt-0.5">💊 {ev.medicamento}{ev.dose ? ` — ${ev.dose}` : ''}</p>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                          💊 {ev.medicamento}{ev.dose ? ` — ${ev.dose}` : ''}
+                        </p>
                       )}
                     </div>
                   </div>
