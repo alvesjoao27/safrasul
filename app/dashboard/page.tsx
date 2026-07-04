@@ -46,75 +46,102 @@ export default function DashboardPage() {
   useEffect(() => { carregarDados() }, [])
 
   async function carregarDados() {
+    // 1. Autenticação — necessária antes de tudo
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const { data: profile } = await supabase
-      .from('profiles').select('nome').eq('id', user.id).single()
-    if (profile) setNomeUser(profile.nome.split(' ')[0])
+    // 2. Perfil e fazenda em paralelo
+    const [profileRes, fazRes] = await Promise.all([
+      supabase.from('profiles').select('nome').eq('id', user.id).single(),
+      supabase.from('fazendas').select('id, nome, municipio, estado').eq('owner_id', user.id).single(),
+    ])
 
-    const { data: faz } = await supabase
-      .from('fazendas').select('id, nome, municipio, estado')
-      .eq('owner_id', user.id).single()
-    if (!faz) { router.push('/onboarding'); return }
+    if (profileRes.data) setNomeUser(profileRes.data.nome.split(' ')[0])
+    if (!fazRes.data)    { router.push('/onboarding'); return }
+
+    const faz = fazRes.data
     setFazenda(faz)
 
-    const { count: totalAnimais } = await supabase
-      .from('animais').select('id', { count: 'exact', head: true })
-      .eq('fazenda_id', faz.id).is('deleted_at', null)
-
-    const { count: safrasAtivas } = await supabase
-      .from('safras').select('id', { count: 'exact', head: true })
-      .eq('fazenda_id', faz.id).eq('status', 'em_andamento')
-
+    // 3. Datas do mês atual
     const inicio = new Date(); inicio.setDate(1)
     const fim    = new Date(); fim.setMonth(fim.getMonth() + 1); fim.setDate(0)
-    const { data: lanc } = await supabase
-      .from('lancamentos_financeiros').select('tipo, valor')
-      .eq('fazenda_id', faz.id)
-      .gte('data_competencia', inicio.toISOString().split('T')[0])
-      .lte('data_competencia', fim.toISOString().split('T')[0])
-      .neq('status', 'cancelado')
+    const hoje   = new Date().toISOString().split('T')[0]
 
-    const rec = lanc?.filter(l => l.tipo === 'receita').reduce((s, l) => s + Number(l.valor), 0) ?? 0
-    const des = lanc?.filter(l => l.tipo === 'despesa').reduce((s, l) => s + Number(l.valor), 0) ?? 0
+    // 4. Todas as queries de dados + clima em paralelo
+    const [
+      animaisRes,
+      safrasRes,
+      lancRes,
+      estoqueRes,
+      manutRes,
+      climaRes,
+    ] = await Promise.all([
+      supabase.from('animais')
+        .select('id', { count: 'exact', head: true })
+        .eq('fazenda_id', faz.id)
+        .is('deleted_at', null),
 
+      supabase.from('safras')
+        .select('id', { count: 'exact', head: true })
+        .eq('fazenda_id', faz.id)
+        .eq('status', 'em_andamento'),
+
+      supabase.from('lancamentos_financeiros')
+        .select('tipo, valor')
+        .eq('fazenda_id', faz.id)
+        .gte('data_competencia', inicio.toISOString().split('T')[0])
+        .lte('data_competencia', fim.toISOString().split('T')[0])
+        .neq('status', 'cancelado'),
+
+      supabase.from('estoque_insumos')
+        .select('qtd_atual, qtd_minima, insumos(nome)')
+        .eq('fazenda_id', faz.id),
+
+      supabase.from('manutencoes')
+        .select('proxima_revisao_data, maquinarios(nome)')
+        .eq('fazenda_id', faz.id)
+        .lte('proxima_revisao_data', hoje),
+
+      // Clima em paralelo com o banco — não bloqueia o carregamento
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(faz.municipio)}&country_code=BR&count=1`)
+        .then(r => r.json())
+        .catch(() => null),
+    ])
+
+    // 5. Processa financeiro
+    const lanc = lancRes.data ?? []
+    const rec  = lanc.filter(l => l.tipo === 'receita').reduce((s, l) => s + Number(l.valor), 0)
+    const des  = lanc.filter(l => l.tipo === 'despesa').reduce((s, l) => s + Number(l.valor), 0)
+
+    // 6. Processa alertas
     const alertas: Resumo['alertas'] = []
-
-    const { data: estoque } = await supabase
-      .from('estoque_insumos').select('qtd_atual, qtd_minima, insumos(nome)')
-      .eq('fazenda_id', faz.id)
-    estoque?.forEach((e: any) => {
+    estoqueRes.data?.forEach((e: any) => {
       if (e.qtd_minima && e.qtd_atual <= e.qtd_minima)
-        alertas.push({ mensagem: `Estoque baixo: ${e.insumos?.nome}`, urgencia: e.qtd_atual === 0 ? 'alta' : 'media' })
+        alertas.push({
+          mensagem: `Estoque baixo: ${e.insumos?.nome}`,
+          urgencia: e.qtd_atual === 0 ? 'alta' : 'media',
+        })
     })
-
-    const { data: manut } = await supabase
-      .from('manutencoes').select('proxima_revisao_data, maquinarios(nome)')
-      .eq('fazenda_id', faz.id)
-      .lte('proxima_revisao_data', new Date().toISOString().split('T')[0])
-    manut?.forEach((m: any) =>
+    manutRes.data?.forEach((m: any) =>
       alertas.push({ mensagem: `Revisão vencida: ${m.maquinarios?.nome}`, urgencia: 'alta' })
     )
 
     setResumo({
-      temAnimais:     (totalAnimais ?? 0) > 0,
-      totalAnimais:   totalAnimais ?? 0,
-      temSafras:      (safrasAtivas ?? 0) > 0,
-      safrasAtivas:   safrasAtivas ?? 0,
-      temLancamentos: (lanc?.length ?? 0) > 0,
+      temAnimais:     (animaisRes.count ?? 0) > 0,
+      totalAnimais:   animaisRes.count ?? 0,
+      temSafras:      (safrasRes.count ?? 0) > 0,
+      safrasAtivas:   safrasRes.count ?? 0,
+      temLancamentos: lanc.length > 0,
       saldoMes:       rec - des,
       receitas:       rec,
       despesas:       des,
       alertas,
     })
 
+    // 7. Processa clima (não bloqueia — já veio em paralelo)
     try {
-      const geo = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(faz.municipio)}&country_code=BR&count=1`
-      ).then(r => r.json())
-      if (geo.results?.[0]) {
-        const { latitude, longitude } = geo.results[0]
+      if (climaRes?.results?.[0]) {
+        const { latitude, longitude } = climaRes.results[0]
         const w = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode&timezone=America/Sao_Paulo`
         ).then(r => r.json())
