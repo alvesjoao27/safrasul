@@ -81,20 +81,23 @@ export default function AnimalPage() {
   useEffect(() => { carregarDados() }, [id])
 
   async function carregarDados() {
-    const { data: animalData } = await supabase
-      .from('animais').select('*, lotes_animais(nome, especie)')
-      .eq('id', id).single()
-    setAnimal(animalData as any)
-
-    const { data: eventosData } = await supabase
-      .from('eventos_manejo')
-      .select('id, tipo, data, descricao, peso_medio_kg, medicamento, dose, observacoes')
-      .eq('animal_id', id)
-      .order('data', { ascending: false })
-    setEventos(eventosData ?? [])
-
+    const [animalRes, eventosRes] = await Promise.all([
+      supabase.from('animais').select('*, lotes_animais(nome, especie)').eq('id', id).single(),
+      supabase.from('eventos_manejo')
+        .select('id, tipo, data, descricao, peso_medio_kg, medicamento, dose, observacoes')
+        .eq('animal_id', id)
+        .order('data', { ascending: false }),
+    ])
+    setAnimal(animalRes.data as any)
+    setEventos(eventosRes.data ?? [])
     setLoading(false)
   }
+
+  // Peso atual = último evento de pesagem registrado
+  const ultimaPesagem = eventos.find(e => e.tipo === 'pesagem' && e.peso_medio_kg)
+
+  // Última vacinação
+  const ultimaVacinacao = eventos.find(e => e.tipo === 'vacinacao')
 
   async function salvarEvento() {
     setSalvando(true)
@@ -144,7 +147,7 @@ export default function AnimalPage() {
   return (
     <div className="min-h-screen bg-[#F5F2EB]">
 
-      {/* Header simples */}
+      {/* Header */}
       <header className="bg-[#2D5016] px-4 py-4 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-white/70 hover:text-white transition">←</button>
         <div>
@@ -157,64 +160,33 @@ export default function AnimalPage() {
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
-        {/* Card de identificação — foto + dados lado a lado */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-4">
-          <div className="flex gap-4 items-start">
-
-            {/* Foto */}
-            <div className="w-28 h-28 rounded-xl bg-amber-50 overflow-hidden shrink-0 relative">
-              {animal.foto_url ? (
-                <img
-                  src={animal.foto_url}
-                  alt={animal.nome ?? 'Animal'}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-5xl">{animal.sexo === 'M' ? '🐂' : '🐄'}</span>
-                </div>
-              )}
-              <span className={`absolute bottom-1 right-1 text-xs font-bold px-1.5 py-0.5 rounded-full
-                ${animal.sexo === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                {animal.sexo === 'M' ? '♂' : '♀'}
-              </span>
-            </div>
-
-            {/* Dados principais */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <h1 className="text-lg font-bold text-stone-900 leading-tight">
-                  {animal.nome ?? animal.brinco ?? 'Sem identificação'}
-                </h1>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0
-                  ${animal.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
-                  {animal.status}
-                </span>
+        {/* Card de identificação — só foto, nome e brinco */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-4">
+          <div className="w-20 h-20 rounded-xl bg-amber-50 overflow-hidden shrink-0 relative">
+            {animal.foto_url ? (
+              <img src={animal.foto_url} alt={animal.nome ?? 'Animal'} className="w-full h-full object-cover"/>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="text-4xl">{animal.sexo === 'M' ? '🐂' : '🐄'}</span>
               </div>
+            )}
+            <span className={`absolute bottom-1 right-1 text-xs font-bold px-1 py-0.5 rounded-full
+              ${animal.sexo === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+              {animal.sexo === 'M' ? '♂' : '♀'}
+            </span>
+          </div>
 
-              {animal.brinco && animal.nome && (
-                <p className="text-xs text-stone-400 mt-0.5">Brinco #{animal.brinco}</p>
-              )}
-              {animal.raca && (
-                <p className="text-sm text-[#5C7A45] font-medium mt-1">{animal.raca}</p>
-              )}
-              {animal.data_nascimento && (
-                <div className="mt-2 space-y-0.5">
-                  <p className="text-xs text-stone-500">Nascimento: {formatarData(animal.data_nascimento)}</p>
-                  <p className="text-xs font-semibold text-amber-600">{calcularIdade(animal.data_nascimento)}</p>
-                </div>
-              )}
-              {animal.peso_entrada_kg && (
-                <p className="text-xs text-stone-500 mt-1">
-                  Peso entrada: <span className="font-medium text-stone-700">{animal.peso_entrada_kg} kg</span>
-                </p>
-              )}
-              {animal.lotes_animais && (
-                <p className="text-xs text-stone-500 mt-1">
-                  Lote: <span className="font-medium text-stone-700">{animal.lotes_animais.nome}</span>
-                </p>
-              )}
-            </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold text-stone-900 leading-tight truncate">
+              {animal.nome ?? '—'}
+            </h1>
+            {animal.brinco && (
+              <p className="text-sm text-stone-400 mt-0.5">Brinco #{animal.brinco}</p>
+            )}
+            <span className={`inline-block mt-2 text-xs font-medium px-2 py-0.5 rounded-full
+              ${animal.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
+              {animal.status}
+            </span>
           </div>
         </div>
 
@@ -238,49 +210,112 @@ export default function AnimalPage() {
         {abaAtiva === 'perfil' && (
           <div className="space-y-4">
 
-            {animal.sisbov && (
-              <section className="bg-white rounded-2xl border border-stone-200 divide-y divide-stone-100">
+            {/* Dados gerais */}
+            <section className="bg-white rounded-2xl border border-stone-200 divide-y divide-stone-100">
+              <div className="px-5 py-3 bg-stone-50 rounded-t-2xl">
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Dados gerais</p>
+              </div>
+
+              {animal.raca && (
+                <div className="flex justify-between items-center px-5 py-3.5">
+                  <p className="text-sm text-stone-500">Raça</p>
+                  <p className="text-sm font-medium text-stone-800">{animal.raca}</p>
+                </div>
+              )}
+              {animal.data_nascimento && (
+                <div className="flex justify-between items-center px-5 py-3.5">
+                  <p className="text-sm text-stone-500">Nascimento</p>
+                  <p className="text-sm font-medium text-stone-800">{formatarData(animal.data_nascimento)}</p>
+                </div>
+              )}
+              {animal.data_nascimento && (
+                <div className="flex justify-between items-center px-5 py-3.5">
+                  <p className="text-sm text-stone-500">Idade atual</p>
+                  <p className="text-sm font-semibold text-amber-600">{calcularIdade(animal.data_nascimento)}</p>
+                </div>
+              )}
+
+              {/* Peso atual — vem do último evento de pesagem */}
+              <div className="flex justify-between items-center px-5 py-3.5">
+                <p className="text-sm text-stone-500">Peso atual</p>
+                {ultimaPesagem ? (
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-stone-800">{ultimaPesagem.peso_medio_kg} kg</p>
+                    <p className="text-xs text-stone-400">{formatarData(ultimaPesagem.data)}</p>
+                  </div>
+                ) : (
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-stone-800">
+                      {animal.peso_entrada_kg ? `${animal.peso_entrada_kg} kg` : '—'}
+                    </p>
+                    {animal.peso_entrada_kg && (
+                      <p className="text-xs text-stone-400">peso de entrada</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {animal.lotes_animais && (
+                <div className="flex justify-between items-center px-5 py-3.5">
+                  <p className="text-sm text-stone-500">Lote</p>
+                  <p className="text-sm font-medium text-stone-800">{animal.lotes_animais.nome}</p>
+                </div>
+              )}
+              {animal.sisbov && (
                 <div className="flex justify-between items-center px-5 py-3.5">
                   <p className="text-sm text-stone-500">SISBOV</p>
                   <p className="text-sm font-medium text-stone-800">{animal.sisbov}</p>
                 </div>
-              </section>
-            )}
+              )}
 
+              {/* Última vacinação */}
+              <div className="flex justify-between items-center px-5 py-3.5">
+                <p className="text-sm text-stone-500">Última vacinação</p>
+                {ultimaVacinacao ? (
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-stone-800">{ultimaVacinacao.descricao ?? '—'}</p>
+                    <p className="text-xs text-stone-400">{formatarData(ultimaVacinacao.data)}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-stone-400">Não registrada</p>
+                )}
+              </div>
+            </section>
+
+            {/* Reprodução — só fêmeas */}
             {animal.sexo === 'F' && (
-              <section className="bg-white rounded-2xl border border-stone-200">
-                <div className="px-5 py-3 border-b border-stone-100">
-                  <p className="text-sm font-semibold text-stone-700">🔬 Reprodução</p>
+              <section className="bg-white rounded-2xl border border-stone-200 divide-y divide-stone-100">
+                <div className="px-5 py-3 bg-stone-50 rounded-t-2xl">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">🔬 Reprodução</p>
                 </div>
-                <div className="divide-y divide-stone-100">
-                  {animal.ultimo_cio && (
-                    <div className="flex justify-between items-center px-5 py-3.5">
-                      <p className="text-sm text-stone-500">Último cio</p>
-                      <p className="text-sm font-medium text-stone-800">{formatarData(animal.ultimo_cio)}</p>
-                    </div>
-                  )}
-                  {prenhez && (
-                    <div className="flex justify-between items-center px-5 py-3.5">
-                      <p className="text-sm text-stone-500">Prenhez</p>
-                      <p className="text-sm font-medium text-stone-800">{prenhez}</p>
-                    </div>
-                  )}
-                  {animal.data_parto_previsto && (
-                    <div className="flex justify-between items-center px-5 py-3.5">
-                      <p className="text-sm text-stone-500">Previsão de parto</p>
-                      <p className="text-sm font-medium text-amber-600">{formatarData(animal.data_parto_previsto)}</p>
-                    </div>
-                  )}
-                  {!animal.ultimo_cio && !prenhez && !animal.data_parto_previsto && (
-                    <p className="px-5 py-4 text-sm text-stone-400">Nenhum dado reprodutivo registrado.</p>
-                  )}
-                </div>
+                {animal.ultimo_cio && (
+                  <div className="flex justify-between items-center px-5 py-3.5">
+                    <p className="text-sm text-stone-500">Último cio</p>
+                    <p className="text-sm font-medium text-stone-800">{formatarData(animal.ultimo_cio)}</p>
+                  </div>
+                )}
+                {prenhez && (
+                  <div className="flex justify-between items-center px-5 py-3.5">
+                    <p className="text-sm text-stone-500">Prenhez</p>
+                    <p className="text-sm font-medium text-stone-800">{prenhez}</p>
+                  </div>
+                )}
+                {animal.data_parto_previsto && (
+                  <div className="flex justify-between items-center px-5 py-3.5">
+                    <p className="text-sm text-stone-500">Previsão de parto</p>
+                    <p className="text-sm font-semibold text-amber-600">{formatarData(animal.data_parto_previsto)}</p>
+                  </div>
+                )}
+                {!animal.ultimo_cio && !prenhez && !animal.data_parto_previsto && (
+                  <p className="px-5 py-4 text-sm text-stone-400">Nenhum dado reprodutivo registrado.</p>
+                )}
               </section>
             )}
 
+            {/* Observações */}
             {animal.observacoes && (
               <section className="bg-white rounded-2xl border border-stone-200 p-5">
-                <p className="text-sm font-semibold text-stone-700 mb-2">📝 Observações</p>
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">📝 Observações</p>
                 <p className="text-sm text-stone-600 leading-relaxed">{animal.observacoes}</p>
               </section>
             )}
