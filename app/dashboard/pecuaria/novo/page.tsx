@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -8,16 +8,16 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 const schema = z.object({
-  nome:            z.string().optional(),
-  brinco:          z.string().optional(),
-  sexo:            z.enum(['M', 'F']),
-  raca:            z.string().optional(),
-  data_nascimento: z.string().optional(),
-  peso_entrada_kg: z.coerce.number().positive().optional(),
-  ultimo_cio:      z.string().optional(),
-  prenhez:         z.enum(['positivo', 'negativo', 'aguardando']).optional(),
+  nome:                z.string().optional(),
+  brinco:              z.string().optional(),
+  sexo:                z.enum(['M', 'F']),
+  raca:                z.string().optional(),
+  data_nascimento:     z.string().optional(),
+  peso_entrada_kg:     z.coerce.number().positive().optional(),
+  ultimo_cio:          z.string().optional(),
+  prenhez:             z.enum(['positivo', 'negativo', 'aguardando']).optional(),
   data_parto_previsto: z.string().optional(),
-  observacoes:     z.string().optional(),
+  observacoes:         z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -34,13 +34,23 @@ export default function NovoAnimalPage() {
   const [carregando,  setCarregando]  = useState(false)
   const [erro,        setErro]        = useState<string | null>(null)
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { sexo: 'F' },
   })
 
-  const sexo    = watch('sexo')
-  const prenhez = watch('prenhez')
+  const sexo      = watch('sexo')
+  const prenhez   = watch('prenhez')
+  const ultimoCio = watch('ultimo_cio')
+
+  // Calcula previsão de parto automaticamente (283 dias = gestação bovina média)
+  useEffect(() => {
+    if (ultimoCio && prenhez === 'positivo') {
+      const cio = new Date(ultimoCio)
+      cio.setDate(cio.getDate() + 283)
+      setValue('data_parto_previsto', cio.toISOString().split('T')[0])
+    }
+  }, [ultimoCio, prenhez])
 
   function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -64,10 +74,9 @@ export default function NovoAnimalPage() {
 
     let foto_url: string | null = null
 
-    // Upload da foto se houver
     if (fotoFile) {
-      const ext      = fotoFile.name.split('.').pop()
-      const caminho  = `${user.id}/${Date.now()}.${ext}`
+      const ext     = fotoFile.name.split('.').pop()
+      const caminho = `${user.id}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from('animais').upload(caminho, fotoFile, { upsert: true })
 
@@ -83,16 +92,16 @@ export default function NovoAnimalPage() {
 
     const { error } = await supabase.from('animais').insert({
       fazenda_id:          faz.id,
-      nome:                dados.nome     || null,
-      brinco:              dados.brinco   || null,
+      nome:                dados.nome                || null,
+      brinco:              dados.brinco              || null,
       sexo:                dados.sexo,
-      raca:                dados.raca     || null,
-      data_nascimento:     dados.data_nascimento || null,
-      peso_entrada_kg:     dados.peso_entrada_kg || null,
-      ultimo_cio:          dados.ultimo_cio || null,
-      prenhez:             dados.prenhez  || null,
+      raca:                dados.raca                || null,
+      data_nascimento:     dados.data_nascimento     || null,
+      peso_entrada_kg:     dados.peso_entrada_kg     || null,
+      ultimo_cio:          dados.ultimo_cio          || null,
+      prenhez:             dados.prenhez             || null,
       data_parto_previsto: dados.data_parto_previsto || null,
-      observacoes:         dados.observacoes || null,
+      observacoes:         dados.observacoes         || null,
       foto_url,
       status: 'ativo',
     })
@@ -123,7 +132,7 @@ export default function NovoAnimalPage() {
 
           {/* Foto */}
           <div className="flex flex-col items-center gap-3">
-            <div className="w-32 h-32 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 overflow-hidden flex items-center justify-center relative">
+            <div className="w-32 h-32 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 overflow-hidden flex items-center justify-center">
               {fotoPreview ? (
                 <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover"/>
               ) : (
@@ -212,8 +221,20 @@ export default function NovoAnimalPage() {
 
               {prenhez === 'positivo' && (
                 <div className="flex flex-col gap-1.5">
-                  <label className={labelClass}>Previsão de parto</label>
-                  <input type="date" className={inputClass} {...register('data_parto_previsto')}/>
+                  <label className={labelClass}>
+                    Previsão de parto
+                    <span className="ml-2 text-xs text-[#5C7A45] font-normal">
+                      (calculada automaticamente — 283 dias)
+                    </span>
+                  </label>
+                  <input
+                    type="date"
+                    className={inputClass + ' bg-amber-50'}
+                    {...register('data_parto_previsto')}
+                  />
+                  <p className="text-xs text-stone-400">
+                    Baseado na data do último cio. Você pode ajustar manualmente se necessário.
+                  </p>
                 </div>
               )}
             </section>
