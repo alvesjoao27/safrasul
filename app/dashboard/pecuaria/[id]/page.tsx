@@ -204,12 +204,9 @@ function CarrosselFotos({ fotos }: { fotos: { url: string; data: string; descric
         )}
       </div>
       {/* Legenda */}
-      <div className="px-4 py-3">
-        <p className="text-xs text-stone-400">{formatarData(foto.data)}</p>
-        {foto.descricao && (
-          <p className="text-sm text-stone-600 mt-0.5">{foto.descricao}</p>
-        )}
-        <p className="text-xs text-stone-400 mt-1">{idx + 1} de {fotos.length}</p>
+      <div className="px-4 py-3 border-t border-stone-100">
+        <p className="text-sm font-medium text-stone-700">{foto.descricao ?? '—'}</p>
+        <p className="text-xs text-stone-400 mt-0.5">{formatarData(foto.data)} · {idx + 1} de {fotos.length}</p>
       </div>
     </div>
   )
@@ -422,21 +419,42 @@ export default function AnimalPage() {
 
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-stone-600">
-          {tipoEvento === 'registro_fotografico'
-            ? 'Descrição do momento (crescimento, novilha, cria, evento especial…)'
-            : 'Descrição'}
+          {{
+            vacinacao:            'Descrição',
+            pesagem:              'Observações da pesagem',
+            tratamento:           'Descrição do tratamento',
+            reproducao:           'Descrição',
+            parto:                'Descrição do parto',
+            registro_fotografico: 'Descrição do momento',
+            outro:                'Descrição',
+          }[tipoEvento] ?? 'Descrição'}
         </label>
         <input type="text"
-          placeholder={tipoEvento === 'registro_fotografico' ? 'Ex: Primeiro cio, Desmame, 1 ano de vida…' : 'Ex: Vacina febre aftosa…'}
+          placeholder={{
+            vacinacao:            'Ex: Vacina febre aftosa, Brucelose…',
+            pesagem:              'Ex: Pesagem mensal, Pré-venda…',
+            tratamento:           'Ex: Tratamento carrapato, Vermifugação…',
+            reproducao:           'Ex: Inseminação artificial, Monta natural…',
+            parto:                'Ex: Parto normal, Gemelar, Assistido…',
+            registro_fotografico: 'Ex: Primeiro cio, Desmame, 1 ano de vida…',
+            outro:                'Descreva o evento…',
+          }[tipoEvento] ?? 'Descrição'}
           value={descEvento} onChange={e => setDescEvento(e.target.value)}
           className="rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
       </div>
 
       {tipoEvento === 'pesagem' && (
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-stone-600">Peso (kg)</label>
-          <input type="number" step="0.1" placeholder="Ex: 420" value={pesoEvento} onChange={e => setPesoEvento(e.target.value)}
-            className="rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-stone-600">Data da pesagem</label>
+            <input type="date" value={dataEvento} onChange={e => setDataEvento(e.target.value)}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-800 outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-stone-600">Peso (kg)</label>
+            <input type="number" step="0.1" placeholder="Ex: 420" value={pesoEvento} onChange={e => setPesoEvento(e.target.value)}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
+          </div>
         </div>
       )}
 
@@ -461,12 +479,12 @@ export default function AnimalPage() {
             <label className="text-xs font-medium text-stone-600">Fotos (máx. 5)</label>
             <span className="text-xs text-stone-400">{fotosEvento.length}/5 selecionada{fotosEvento.length !== 1 ? 's' : ''}</span>
           </div>
-          {fotosEvento.length < 5 && (
+          {fotosEvento.length < 1 && (
             <label className="cursor-pointer flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-stone-300 py-3 text-sm text-stone-500 hover:border-[#2D5016] hover:text-[#2D5016] transition">
-              📷 Adicionar fotos
+              📷 Selecionar foto
               <input
                 ref={inputFotoRef}
-                type="file" accept="image/*" multiple className="hidden"
+                type="file" accept="image/*" className="hidden"
                 onChange={handleFotosEvento}
               />
             </label>
