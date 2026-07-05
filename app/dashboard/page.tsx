@@ -5,7 +5,34 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 type Fazenda = { id: string; nome: string; municipio: string; estado: string }
-type Clima   = { temp: number; descricao: string; icon: string } | null
+
+type DiaPrevisao = {
+  data:      string
+  diaSemana: string
+  tempMax:   number
+  tempMin:   number
+  descricao: string
+  icon:      string
+  probChuva: number
+}
+
+type Clima = {
+  temp:      number
+  descricao: string
+  icon:      string
+  previsao:  DiaPrevisao[]
+} | null
+
+function getClimatempoUrl(municipio: string, estado: string): string {
+  const q = encodeURIComponent(`${municipio} ${estado} climatempo`)
+  return `https://www.google.com/search?q=${q}`
+}
+
+function condicaoTempo(code: number): { descricao: string; icon: string } {
+  const desc = code <= 1 ? 'Céu limpo' : code <= 3 ? 'Parcialmente nublado' : code <= 48 ? 'Nublado' : code <= 67 ? 'Chuva' : 'Tempestade'
+  const icon = code <= 1 ? '☀️' : code <= 3 ? '⛅' : code <= 48 ? '☁️' : code <= 67 ? '🌧️' : '⛈️'
+  return { descricao: desc, icon }
+}
 
 type Resumo = {
   temAnimais:     boolean
@@ -143,13 +170,30 @@ export default function DashboardPage() {
       if (climaRes?.results?.[0]) {
         const { latitude, longitude } = climaRes.results[0]
         const w = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode&timezone=America/Sao_Paulo`
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}` +
+          `&current=temperature_2m,weathercode` +
+          `&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max` +
+          `&timezone=America/Sao_Paulo&forecast_days=6`
         ).then(r => r.json())
-        const code = w.current?.weathercode
-        const temp = Math.round(w.current?.temperature_2m)
-        const desc = code <= 1 ? 'Céu limpo' : code <= 3 ? 'Parcialmente nublado' : code <= 48 ? 'Nublado' : code <= 67 ? 'Chuva' : 'Tempestade'
-        const icon = code <= 1 ? '☀️' : code <= 3 ? '⛅' : code <= 48 ? '☁️' : code <= 67 ? '🌧️' : '⛈️'
-        setClima({ temp, descricao: desc, icon })
+
+        const atual = condicaoTempo(w.current?.weathercode)
+        const temp  = Math.round(w.current?.temperature_2m)
+
+        // daily[0] é hoje — "próximos 5 dias" = índices 1 a 5
+        const previsao: DiaPrevisao[] = (w.daily?.time ?? []).slice(1, 6).map((data: string, i: number) => {
+          const idx  = i + 1
+          const cond = condicaoTempo(w.daily.weathercode[idx])
+          return {
+            data,
+            diaSemana: new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
+            tempMax:   Math.round(w.daily.temperature_2m_max[idx]),
+            tempMin:   Math.round(w.daily.temperature_2m_min[idx]),
+            probChuva: w.daily.precipitation_probability_max?.[idx] ?? 0,
+            ...cond,
+          }
+        })
+
+        setClima({ temp, descricao: atual.descricao, icon: atual.icon, previsao })
       }
     } catch {}
 
@@ -187,11 +231,15 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {clima && (
-            <div className="text-right">
+          {clima && fazenda && (
+            <button
+              onClick={() => window.open(getClimatempoUrl(fazenda.municipio, fazenda.estado), '_blank')}
+              className="text-right hover:opacity-80 transition"
+              title="Ver previsão completa no Climatempo"
+            >
               <p className="text-white text-sm font-medium">{clima.icon} {clima.temp}°C</p>
               <p className="text-white/60 text-xs">{clima.descricao}</p>
-            </div>
+            </button>
           )}
           <button onClick={handleLogout} className="text-white/60 hover:text-white text-xs transition">
             Sair
@@ -205,6 +253,40 @@ export default function DashboardPage() {
           <h1 className="text-xl font-semibold text-[#1E3A0F]">{saudacao}, {nomeUser}! 👋</h1>
           <p className="text-sm text-stone-500 mt-0.5">{fazenda?.municipio} · {fazenda?.estado}</p>
         </div>
+
+        {clima && clima.previsao.length > 0 && fazenda && (
+          <button
+            onClick={() => window.open(getClimatempoUrl(fazenda.municipio, fazenda.estado), '_blank')}
+            className="w-full text-left bg-white rounded-2xl border border-stone-200 overflow-hidden
+              hover:shadow-md hover:border-sky-300 transition active:scale-[.99]"
+          >
+            <div className="px-5 py-3 flex items-center justify-between bg-sky-600">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{clima.icon}</span>
+                <div>
+                  <p className="text-white font-semibold text-sm leading-none">
+                    Agora: {clima.temp}°C · {clima.descricao}
+                  </p>
+                  <p className="text-white/70 text-xs mt-0.5">Próximos 5 dias</p>
+                </div>
+              </div>
+              <span className="text-white/80 text-xs">Climatempo →</span>
+            </div>
+            <div className="px-3 py-4 grid grid-cols-5 gap-1">
+              {clima.previsao.map(dia => (
+                <div key={dia.data} className="flex flex-col items-center gap-1 text-center">
+                  <p className="text-xs font-medium text-stone-500 capitalize">{dia.diaSemana}</p>
+                  <p className="text-xl">{dia.icon}</p>
+                  <p className="text-xs font-semibold text-stone-800">{dia.tempMax}°</p>
+                  <p className="text-xs text-stone-400">{dia.tempMin}°</p>
+                  {dia.probChuva > 0 && (
+                    <p className="text-[10px] text-sky-600">💧{dia.probChuva}%</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </button>
+        )}
 
         {resumo && resumo.alertas.length > 0 && (
           <section className="space-y-2">
