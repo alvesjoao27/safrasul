@@ -14,12 +14,16 @@ type DiaPrevisao = {
   descricao: string
   icon:      string
   probChuva: number
+  mmChuva:   number
 }
 
 type Clima = {
   temp:      number
   descricao: string
   icon:      string
+  umidade:   number
+  nascer:    string
+  poente:    string
   previsao:  DiaPrevisao[]
 } | null
 
@@ -171,13 +175,19 @@ export default function DashboardPage() {
         const { latitude, longitude } = climaRes.results[0]
         const w = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}` +
-          `&current=temperature_2m,weathercode` +
-          `&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max` +
+          `&current=temperature_2m,weathercode,relative_humidity_2m` +
+          `&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,precipitation_sum,sunrise,sunset` +
           `&timezone=America/Sao_Paulo&forecast_days=6`
         ).then(r => r.json())
 
-        const atual = condicaoTempo(w.current?.weathercode)
-        const temp  = Math.round(w.current?.temperature_2m)
+        const atual   = condicaoTempo(w.current?.weathercode)
+        const temp    = Math.round(w.current?.temperature_2m)
+        const umidade = w.current?.relative_humidity_2m ?? 0
+
+        // Nascer e pôr do sol de hoje (índice 0) — formato ISO "2024-07-05T05:42"
+        const fmtHora = (iso: string) => iso?.slice(11, 16) ?? '--:--'
+        const nascer  = fmtHora(w.daily?.sunrise?.[0])
+        const poente  = fmtHora(w.daily?.sunset?.[0])
 
         // daily[0] é hoje — "próximos 5 dias" = índices 1 a 5
         const previsao: DiaPrevisao[] = (w.daily?.time ?? []).slice(1, 6).map((data: string, i: number) => {
@@ -189,11 +199,12 @@ export default function DashboardPage() {
             tempMax:   Math.round(w.daily.temperature_2m_max[idx]),
             tempMin:   Math.round(w.daily.temperature_2m_min[idx]),
             probChuva: w.daily.precipitation_probability_max?.[idx] ?? 0,
+            mmChuva:   Math.round((w.daily.precipitation_sum?.[idx] ?? 0) * 10) / 10,
             ...cond,
           }
         })
 
-        setClima({ temp, descricao: atual.descricao, icon: atual.icon, previsao })
+        setClima({ temp, descricao: atual.descricao, icon: atual.icon, umidade, nascer, poente, previsao })
       }
     } catch {}
 
@@ -260,28 +271,39 @@ export default function DashboardPage() {
             className="w-full text-left bg-white rounded-2xl border border-stone-200 overflow-hidden
               hover:shadow-md hover:border-sky-300 transition active:scale-[.99]"
           >
-            <div className="px-5 py-3 flex items-center justify-between bg-sky-600">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{clima.icon}</span>
-                <div>
-                  <p className="text-white font-semibold text-sm leading-none">
-                    Agora: {clima.temp}°C · {clima.descricao}
-                  </p>
-                  <p className="text-white/70 text-xs mt-0.5">Próximos 5 dias</p>
+            {/* Cabeçalho: condição atual */}
+            <div className="px-5 py-3 bg-sky-600">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{clima.icon}</span>
+                  <div>
+                    <p className="text-white font-semibold text-sm leading-none">
+                      {clima.temp}°C · {clima.descricao}
+                    </p>
+                    <p className="text-white/70 text-xs mt-0.5">Agora</p>
+                  </div>
                 </div>
+                <span className="text-white/80 text-xs">Ver no Google →</span>
               </div>
-              <span className="text-white/80 text-xs">Climatempo →</span>
+              {/* Umidade + nascer/pôr do sol */}
+              <div className="mt-2.5 flex items-center gap-4">
+                <span className="text-white/90 text-xs">💧 Umidade {clima.umidade}%</span>
+                <span className="text-white/90 text-xs">🌅 {clima.nascer}</span>
+                <span className="text-white/90 text-xs">🌇 {clima.poente}</span>
+              </div>
             </div>
-            <div className="px-3 py-4 grid grid-cols-5 gap-1">
+            {/* Grade dos próximos 5 dias */}
+            <div className="px-3 py-3.5 grid grid-cols-5 divide-x divide-stone-100">
               {clima.previsao.map(dia => (
-                <div key={dia.data} className="flex flex-col items-center gap-1 text-center">
-                  <p className="text-xs font-medium text-stone-500 capitalize">{dia.diaSemana}</p>
-                  <p className="text-xl">{dia.icon}</p>
+                <div key={dia.data} className="flex flex-col items-center gap-1 text-center px-1">
+                  <p className="text-[11px] font-medium text-stone-500 capitalize">{dia.diaSemana}</p>
+                  <p className="text-xl leading-none">{dia.icon}</p>
                   <p className="text-xs font-semibold text-stone-800">{dia.tempMax}°</p>
                   <p className="text-xs text-stone-400">{dia.tempMin}°</p>
-                  {dia.probChuva > 0 && (
-                    <p className="text-[10px] text-sky-600">💧{dia.probChuva}%</p>
-                  )}
+                  {dia.mmChuva > 0
+                    ? <p className="text-[10px] text-sky-600 font-medium">{dia.mmChuva}mm</p>
+                    : <p className="text-[10px] text-stone-300">—</p>
+                  }
                 </div>
               ))}
             </div>
