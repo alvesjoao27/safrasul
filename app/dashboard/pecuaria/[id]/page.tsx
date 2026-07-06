@@ -476,8 +476,8 @@ export default function AnimalPage() {
       {tipoEvento === 'registro_fotografico' && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-stone-600">Fotos (máx. 5)</label>
-            <span className="text-xs text-stone-400">{fotosEvento.length}/5 selecionada{fotosEvento.length !== 1 ? 's' : ''}</span>
+            <label className="text-xs font-medium text-stone-600">Foto</label>
+            <span className="text-xs text-stone-400">{fotosEvento.length} foto{fotosEvento.length !== 1 ? 's' : ''} adicionada{fotosEvento.length !== 1 ? 's' : ''}</span>
           </div>
           {fotosEvento.length < 1 && (
             <label className="cursor-pointer flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-stone-300 py-3 text-sm text-stone-500 hover:border-[#2D5016] hover:text-[#2D5016] transition">
