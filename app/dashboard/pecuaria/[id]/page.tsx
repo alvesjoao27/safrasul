@@ -365,6 +365,13 @@ export default function AnimalPage() {
       fotos_urls:    fotos_urls.length > 0 ? fotos_urls : null,
     })
 
+    // Atualiza foto de perfil do animal com a última foto adicionada
+    if (tipoEvento === 'registro_fotografico' && fotos_urls.length > 0) {
+      await supabase.from('animais')
+        .update({ foto_url: fotos_urls[fotos_urls.length - 1] })
+        .eq('id', id)
+    }
+
     setNovoEvento(false)
     setDescEvento('')
     setPesoEvento('')
