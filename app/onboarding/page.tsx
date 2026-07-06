@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,8 +9,8 @@ import { useRouter } from 'next/navigation'
 
 const onboardingSchema = z.object({
   nome:          z.string().min(2, 'Informe o nome da propriedade'),
-  municipio:     z.string().min(2, 'Informe o município'),
   estado:        z.string().length(2, 'Selecione o estado'),
+  municipio:     z.string().min(2, 'Selecione o município'),
   area_total_ha: z.coerce.number().positive('Informe a área total').optional(),
   documento:     z.string().optional(),
   car:           z.string().optional(),
@@ -18,25 +18,69 @@ const onboardingSchema = z.object({
 
 type OnboardingForm = z.infer<typeof onboardingSchema>
 
-const ESTADOS_SUL = [
-  { uf: 'RS', nome: 'Rio Grande do Sul' },
-  { uf: 'SC', nome: 'Santa Catarina' },
+const ESTADOS = [
+  { uf: 'AC', nome: 'Acre' },
+  { uf: 'AL', nome: 'Alagoas' },
+  { uf: 'AP', nome: 'Amapá' },
+  { uf: 'AM', nome: 'Amazonas' },
+  { uf: 'BA', nome: 'Bahia' },
+  { uf: 'CE', nome: 'Ceará' },
+  { uf: 'DF', nome: 'Distrito Federal' },
+  { uf: 'ES', nome: 'Espírito Santo' },
+  { uf: 'GO', nome: 'Goiás' },
+  { uf: 'MA', nome: 'Maranhão' },
+  { uf: 'MT', nome: 'Mato Grosso' },
+  { uf: 'MS', nome: 'Mato Grosso do Sul' },
+  { uf: 'MG', nome: 'Minas Gerais' },
+  { uf: 'PA', nome: 'Pará' },
+  { uf: 'PB', nome: 'Paraíba' },
   { uf: 'PR', nome: 'Paraná' },
+  { uf: 'PE', nome: 'Pernambuco' },
+  { uf: 'PI', nome: 'Piauí' },
+  { uf: 'RJ', nome: 'Rio de Janeiro' },
+  { uf: 'RN', nome: 'Rio Grande do Norte' },
+  { uf: 'RS', nome: 'Rio Grande do Sul' },
+  { uf: 'RO', nome: 'Rondônia' },
+  { uf: 'RR', nome: 'Roraima' },
+  { uf: 'SC', nome: 'Santa Catarina' },
+  { uf: 'SP', nome: 'São Paulo' },
+  { uf: 'SE', nome: 'Sergipe' },
+  { uf: 'TO', nome: 'Tocantins' },
 ]
 
 export default function OnboardingPage() {
   const router   = useRouter()
   const supabase = createClient()
-  const [erro, setErro]             = useState<string | null>(null)
-  const [carregando, setCarregando] = useState(false)
-  const [etapa, setEtapa]           = useState<1 | 2>(1)
 
-  const { register, handleSubmit, formState: { errors }, trigger } = useForm<OnboardingForm>({
+  const [erro,        setErro]        = useState<string | null>(null)
+  const [carregando,  setCarregando]  = useState(false)
+  const [etapa,       setEtapa]       = useState<1 | 2>(1)
+  const [municipios,  setMunicipios]  = useState<string[]>([])
+  const [loadingMun,  setLoadingMun]  = useState(false)
+  const [estadoSel,   setEstadoSel]   = useState('')
+
+  const { register, handleSubmit, formState: { errors }, trigger, setValue, watch } = useForm<OnboardingForm>({
     resolver: zodResolver(onboardingSchema),
   })
 
+  const municipioSel = watch('municipio')
+
+  // Busca municípios da API do IBGE quando estado muda
+  useEffect(() => {
+    if (!estadoSel) { setMunicipios([]); return }
+    setLoadingMun(true)
+    setValue('municipio', '')
+    fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${estadoSel}/municipios?orderBy=nome`)
+      .then(r => r.json())
+      .then((data: { nome: string }[]) => {
+        setMunicipios(data.map(m => m.nome))
+        setLoadingMun(false)
+      })
+      .catch(() => setLoadingMun(false))
+  }, [estadoSel])
+
   async function avancarEtapa() {
-    const valido = await trigger(['nome', 'municipio', 'estado'])
+    const valido = await trigger(['nome', 'estado', 'municipio'])
     if (valido) setEtapa(2)
   }
 
@@ -45,10 +89,7 @@ export default function OnboardingPage() {
     setErro(null)
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.push('/auth/login')
-      return
-    }
+    if (!user) { router.push('/auth/login'); return }
 
     const { error } = await supabase.from('fazendas').insert({
       owner_id:      user.id,
@@ -56,8 +97,8 @@ export default function OnboardingPage() {
       municipio:     dados.municipio,
       estado:        dados.estado,
       area_total_ha: dados.area_total_ha || null,
-      documento:     dados.documento || null,
-      car:           dados.car || null,
+      documento:     dados.documento     || null,
+      car:           dados.car           || null,
     })
 
     if (error) {
@@ -112,30 +153,21 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex flex-col gap-5">
+
+              {/* Nome */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="nome" className="text-sm font-medium text-stone-700">
                   Nome da propriedade
                 </label>
                 <input
-                  id="nome" type="text" placeholder="Ex: Sítio São João"
+                  id="nome" type="text" placeholder="Ex: Sítio São José"
                   className={inputClass(!!errors.nome)}
                   {...register('nome')}
                 />
                 {errors.nome && <p className="text-xs text-red-600">{errors.nome.message}</p>}
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="municipio" className="text-sm font-medium text-stone-700">
-                  Município
-                </label>
-                <input
-                  id="municipio" type="text" placeholder="Ex: Passo Fundo"
-                  className={inputClass(!!errors.municipio)}
-                  {...register('municipio')}
-                />
-                {errors.municipio && <p className="text-xs text-red-600">{errors.municipio.message}</p>}
-              </div>
-
+              {/* Estado */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="estado" className="text-sm font-medium text-stone-700">
                   Estado
@@ -144,14 +176,38 @@ export default function OnboardingPage() {
                   id="estado"
                   className={inputClass(!!errors.estado)}
                   defaultValue=""
-                  {...register('estado')}
+                  {...register('estado', {
+                    onChange: e => setEstadoSel(e.target.value),
+                  })}
                 >
                   <option value="" disabled>Selecione o estado</option>
-                  {ESTADOS_SUL.map(e => (
+                  {ESTADOS.map(e => (
                     <option key={e.uf} value={e.uf}>{e.nome}</option>
                   ))}
                 </select>
                 {errors.estado && <p className="text-xs text-red-600">{errors.estado.message}</p>}
+              </div>
+
+              {/* Município */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="municipio" className="text-sm font-medium text-stone-700">
+                  Município
+                </label>
+                <select
+                  id="municipio"
+                  className={inputClass(!!errors.municipio)}
+                  defaultValue=""
+                  disabled={!estadoSel || loadingMun}
+                  {...register('municipio')}
+                >
+                  <option value="" disabled>
+                    {!estadoSel ? 'Selecione o estado primeiro' : loadingMun ? 'Carregando municípios…' : 'Selecione o município'}
+                  </option>
+                  {municipios.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                {errors.municipio && <p className="text-xs text-red-600">{errors.municipio.message}</p>}
               </div>
 
               <button
@@ -240,7 +296,7 @@ export default function OnboardingPage() {
       </div>
 
       <p className="mt-10 text-xs text-stone-400 text-center">
-        © {new Date().getFullYear()} Safra Sul · RS · SC · PR
+        © {new Date().getFullYear()} Safra Sul · Todos os estados do Brasil
       </p>
     </main>
   )
