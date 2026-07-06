@@ -14,6 +14,7 @@ type Animal = {
   data_nascimento: string | null
   peso_entrada_kg: number | null
   foto_url: string | null
+  finalidade: 'corte' | 'leite' | 'dupla_aptidao' | null
   ultimo_cio: string | null
   prenhez: string | null
   data_parto_previsto: string | null
@@ -305,6 +306,7 @@ export default function AnimalPage() {
       raca:                form.raca                || null,
       data_nascimento:     form.data_nascimento     || null,
       peso_entrada_kg:     form.peso_entrada_kg     || null,
+      finalidade:          form.finalidade          || null,
       ultimo_cio:          form.ultimo_cio          || null,
       prenhez:             form.prenhez             || null,
       data_parto_previsto: form.data_parto_previsto || null,
@@ -599,6 +601,24 @@ export default function AnimalPage() {
               <label className="text-xs font-medium text-stone-600">Raça</label>
               <input type="text" className={inputCls} value={form.raca ?? ''} onChange={e => setForm(f => ({ ...f, raca: e.target.value }))}/>
             </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-stone-600">Finalidade</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: 'corte',         l: '🥩 Corte' },
+                  { v: 'leite',         l: '🥛 Leite' },
+                  { v: 'dupla_aptidao', l: '⚡ Dupla aptidão' },
+                ].map(({ v, l }) => (
+                  <button key={v} type="button"
+                    onClick={() => setForm(f => ({ ...f, finalidade: v as Animal['finalidade'] }))}
+                    className={`rounded-lg border-2 py-2 text-xs font-medium transition
+                      ${form.finalidade === v ? 'border-[#2D5016] bg-[#2D5016]/5 text-[#2D5016]' : 'border-stone-200 text-stone-500'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-stone-600">Nascimento</label>
@@ -696,6 +716,14 @@ export default function AnimalPage() {
                 <div className="flex justify-between items-center px-5 py-3.5">
                   <p className="text-sm text-stone-500">Raça</p>
                   <p className="text-sm font-medium text-stone-800">{animal.raca}</p>
+                </div>
+              )}
+              {animal.finalidade && (
+                <div className="flex justify-between items-center px-5 py-3.5">
+                  <p className="text-sm text-stone-500">Finalidade</p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {{ corte: '🥩 Corte', leite: '🥛 Leite', dupla_aptidao: '⚡ Dupla aptidão' }[animal.finalidade]}
+                  </p>
                 </div>
               )}
               {animal.data_nascimento && (
