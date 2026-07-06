@@ -159,8 +159,16 @@ function GraficoPeso({ pontos }: { pontos: PontoPeso[] }) {
 }
 
 // ─── Carrossel de fotos ───────────────────────────────────────────────────────
-function CarrosselFotos({ fotos }: { fotos: { url: string; data: string; descricao: string | null }[] }) {
-  const [idx, setIdx] = useState(0)
+function CarrosselFotos({
+  fotos,
+  onExcluir,
+}: {
+  fotos: { url: string; data: string; descricao: string | null; eventoId: string }[]
+  onExcluir: (url: string, eventoId: string) => Promise<void>
+}) {
+  const [idx, setIdx]         = useState(0)
+  const [excluindo, setExcluindo] = useState(false)
+  const [confirmar, setConfirmar] = useState(false)
 
   if (fotos.length === 0) {
     return (
@@ -172,7 +180,18 @@ function CarrosselFotos({ fotos }: { fotos: { url: string; data: string; descric
     )
   }
 
-  const foto = fotos[idx]
+  // Garante que idx não ultrapasse o limite após exclusão
+  const idxSeguro = Math.min(idx, fotos.length - 1)
+  const foto = fotos[idxSeguro]
+
+  async function handleExcluir() {
+    setExcluindo(true)
+    await onExcluir(foto.url, foto.eventoId)
+    setConfirmar(false)
+    setExcluindo(false)
+    // Recua o índice se era a última foto
+    if (idxSeguro >= fotos.length - 1) setIdx(Math.max(0, fotos.length - 2))
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
@@ -180,23 +199,34 @@ function CarrosselFotos({ fotos }: { fotos: { url: string; data: string; descric
       <div
         className="relative w-full bg-stone-100 cursor-pointer select-none"
         style={{ aspectRatio: '4/3' }}
-        onClick={() => setIdx(i => (i + 1) % fotos.length)}
+        onClick={() => { setConfirmar(false); setIdx(i => (i + 1) % fotos.length) }}
       >
         <img
           src={foto.url}
           alt={foto.descricao ?? 'Foto do animal'}
           className="w-full h-full object-cover"
         />
+
+        {/* Botão excluir */}
+        <button
+          onClick={e => { e.stopPropagation(); setConfirmar(v => !v) }}
+          className="absolute top-3 right-3 bg-black/40 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center transition"
+          title="Excluir foto"
+        >
+          🗑
+        </button>
+
         {/* Indicador */}
         <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
           {fotos.map((_, i) => (
             <button
               key={i}
-              onClick={e => { e.stopPropagation(); setIdx(i) }}
-              className={`w-1.5 h-1.5 rounded-full transition ${i === idx ? 'bg-white' : 'bg-white/50'}`}
+              onClick={e => { e.stopPropagation(); setIdx(i); setConfirmar(false) }}
+              className={`w-1.5 h-1.5 rounded-full transition ${i === idxSeguro ? 'bg-white' : 'bg-white/50'}`}
             />
           ))}
         </div>
+
         {/* Seta direita */}
         {fotos.length > 1 && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/30 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm pointer-events-none">
@@ -204,10 +234,33 @@ function CarrosselFotos({ fotos }: { fotos: { url: string; data: string; descric
           </div>
         )}
       </div>
+
+      {/* Confirmação de exclusão */}
+      {confirmar && (
+        <div className="bg-red-50 border-t border-red-200 px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-red-700 font-medium">Excluir esta foto?</p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => setConfirmar(false)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-50 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleExcluir}
+              disabled={excluindo}
+              className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-55"
+            >
+              {excluindo ? 'Excluindo…' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Legenda */}
       <div className="px-4 py-3 border-t border-stone-100">
         <p className="text-sm font-medium text-stone-700">{foto.descricao ?? '—'}</p>
-        <p className="text-xs text-stone-400 mt-0.5">{formatarData(foto.data)} · {idx + 1} de {fotos.length}</p>
+        <p className="text-xs text-stone-400 mt-0.5">{formatarData(foto.data)} · {idxSeguro + 1} de {fotos.length}</p>
       </div>
     </div>
   )
@@ -287,7 +340,7 @@ export default function AnimalPage() {
   // Fotos de registros fotográficos
   const todasFotos = eventos
     .filter(e => e.tipo === 'registro_fotografico' && e.fotos_urls && e.fotos_urls.length > 0)
-    .flatMap(e => (e.fotos_urls ?? []).map(url => ({ url, data: e.data, descricao: e.descricao })))
+    .flatMap(e => (e.fotos_urls ?? []).map(url => ({ url, data: e.data, descricao: e.descricao, eventoId: e.id })))
 
   // ── Edição ──────────────────────────────────────────────────────────────────
   function abrirEdicao() {
@@ -382,7 +435,28 @@ export default function AnimalPage() {
     carregarDados()
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Excluir foto ────────────────────────────────────────────────────────────
+  async function excluirFoto(url: string, eventoId: string) {
+    // 1. Remove do Storage — extrai o path após o bucket
+    const path = url.split('/animais/')[1]
+    if (path) await supabase.storage.from('animais').remove([decodeURIComponent(path)])
+
+    // 2. Atualiza fotos_urls do evento removendo a URL
+    const evento = eventos.find(e => e.id === eventoId)
+    if (!evento) return
+    const novasUrls = (evento.fotos_urls ?? []).filter(u => u !== url)
+    await supabase.from('eventos_manejo')
+      .update({ fotos_urls: novasUrls.length > 0 ? novasUrls : null })
+      .eq('id', eventoId)
+
+    // 3. Se era a foto de perfil, regride para a anterior ou nula
+    if (animal?.foto_url === url) {
+      const proxima = todasFotos.find(f => f.url !== url)?.url ?? null
+      await supabase.from('animais').update({ foto_url: proxima }).eq('id', id)
+    }
+
+    carregarDados()
+  }
   if (loading) return (
     <div className="min-h-screen bg-[#F5F2EB] flex items-center justify-center">
       <p className="text-sm text-stone-500">Carregando...</p>
@@ -910,7 +984,7 @@ export default function AnimalPage() {
         {/* ── ABA FOTOS ── */}
         {abaAtiva === 'fotos' && (
           <div className="space-y-4">
-            <CarrosselFotos fotos={todasFotos} />
+            <CarrosselFotos fotos={todasFotos} onExcluir={excluirFoto} />
           </div>
         )}
 
