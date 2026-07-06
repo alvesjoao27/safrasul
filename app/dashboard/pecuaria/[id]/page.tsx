@@ -440,7 +440,7 @@ export default function AnimalPage() {
             outro:                'Descreva o evento…',
           }[tipoEvento] ?? 'Descrição'}
           value={descEvento} onChange={e => setDescEvento(e.target.value)}
-          className="rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
+          className="rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
       </div>
 
       {tipoEvento === 'pesagem' && (
@@ -453,7 +453,7 @@ export default function AnimalPage() {
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-stone-600">Peso (kg)</label>
             <input type="number" step="0.1" placeholder="Ex: 420" value={pesoEvento} onChange={e => setPesoEvento(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
           </div>
         </div>
       )}
@@ -463,12 +463,12 @@ export default function AnimalPage() {
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-stone-600">Medicamento</label>
             <input type="text" placeholder="Nome do produto" value={medEvento} onChange={e => setMedEvento(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-stone-600">Dose</label>
             <input type="text" placeholder="Ex: 2ml" value={doseEvento} onChange={e => setDoseEvento(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-[#2D5016]/25 bg-white"/>
           </div>
         </div>
       )}
