@@ -43,7 +43,23 @@ export default function CadastroPage() {
     })
 
     if (error) {
-      setErro('Não foi possível criar sua conta. Tente novamente.')
+      // E-mail já cadastrado
+      if (
+        error.message?.toLowerCase().includes('already registered') ||
+        error.message?.toLowerCase().includes('user already exists') ||
+        error.code === 'user_already_exists'
+      ) {
+        setErro('Este e-mail já possui uma conta cadastrada. Faça login para continuar.')
+      } else {
+        setErro('Não foi possível criar sua conta. Tente novamente.')
+      }
+      setCarregando(false)
+      return
+    }
+
+    // Supabase às vezes retorna sucesso mas com identities vazio — sinal de e-mail duplicado
+    if (data.user && data.user.identities?.length === 0) {
+      setErro('Este e-mail já possui uma conta cadastrada. Faça login para continuar.')
       setCarregando(false)
       return
     }
@@ -61,7 +77,7 @@ export default function CadastroPage() {
       return
     }
 
-    // 3. Criar o perfil
+    // 3. Criar o perfil — sem restrição de unicidade por nome
     if (data.user) {
       await supabase.from('profiles').insert({
         id:   data.user.id,
@@ -69,7 +85,7 @@ export default function CadastroPage() {
       })
     }
 
-   // 4. Ir para onboarding
+    // 4. Ir para onboarding
     window.location.href = '/onboarding'
   }
 
@@ -104,6 +120,11 @@ export default function CadastroPage() {
         {erro && (
           <div className="mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
             <p className="text-sm text-red-700">{erro}</p>
+            {erro.includes('já possui uma conta') && (
+              <a href="/auth/login" className="text-sm text-[#2D5016] font-medium hover:underline mt-1 inline-block">
+                Ir para o login →
+              </a>
+            )}
           </div>
         )}
 
