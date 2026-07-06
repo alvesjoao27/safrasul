@@ -14,6 +14,7 @@ const schema = z.object({
   raca:                z.string().optional(),
   data_nascimento:     z.string().optional(),
   peso_entrada_kg:     z.coerce.number().positive().optional(),
+  finalidade:          z.enum(['corte', 'leite', 'dupla_aptidao']).optional(),
   ultimo_cio:          z.string().optional(),
   prenhez:             z.enum(['positivo', 'negativo', 'aguardando']).optional(),
   data_parto_previsto: z.string().optional(),
@@ -39,9 +40,10 @@ export default function NovoAnimalPage() {
     defaultValues: { sexo: 'F' },
   })
 
-  const sexo      = watch('sexo')
-  const prenhez   = watch('prenhez')
-  const ultimoCio = watch('ultimo_cio')
+  const sexo       = watch('sexo')
+  const prenhez    = watch('prenhez')
+  const ultimoCio  = watch('ultimo_cio')
+  const finalidade = watch('finalidade')
 
   // Calcula previsão de parto automaticamente (283 dias = gestação bovina média)
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function NovoAnimalPage() {
       raca:                dados.raca                || null,
       data_nascimento:     dados.data_nascimento     || null,
       peso_entrada_kg:     dados.peso_entrada_kg     || null,
+      finalidade:          dados.finalidade          || null,
       ultimo_cio:          dados.ultimo_cio          || null,
       prenhez:             dados.prenhez             || null,
       data_parto_previsto: dados.data_parto_previsto || null,
@@ -180,6 +183,23 @@ export default function NovoAnimalPage() {
             <div className="flex flex-col gap-1.5">
               <label className={labelClass}>Raça</label>
               <input type="text" placeholder="Ex: Nelore, Angus, Girolando..." className={inputClass} {...register('raca')}/>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass}>Finalidade</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: 'corte',         l: '🥩 Corte' },
+                  { v: 'leite',         l: '🥛 Leite' },
+                  { v: 'dupla_aptidao', l: '⚡ Dupla aptidão' },
+                ].map(({ v, l }) => (
+                  <label key={v} className={`flex items-center justify-center rounded-lg border-2 py-2.5 cursor-pointer text-xs font-medium transition text-center
+                    ${finalidade === v ? 'border-[#2D5016] bg-[#2D5016]/5 text-[#2D5016]' : 'border-stone-200 text-stone-500'}`}>
+                    <input type="radio" value={v} className="hidden" {...register('finalidade')}/>
+                    {l}
+                  </label>
+                ))}
+              </div>
             </div>
           </section>
 
