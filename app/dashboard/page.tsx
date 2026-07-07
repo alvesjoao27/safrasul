@@ -68,11 +68,14 @@ export default function DashboardPage() {
   const router   = useRouter()
   const supabase = createClient()
 
-  const [fazenda,  setFazenda]  = useState<Fazenda | null>(null)
-  const [resumo,   setResumo]   = useState<Resumo | null>(null)
-  const [clima,    setClima]    = useState<Clima>(null)
-  const [nomeUser, setNomeUser] = useState('')
-  const [loading,  setLoading]  = useState(true)
+  const [fazenda,    setFazenda]    = useState<Fazenda | null>(null)
+  const [resumo,     setResumo]     = useState<Resumo | null>(null)
+  const [clima,      setClima]      = useState<Clima>(null)
+  const [nomeUser,   setNomeUser]   = useState('')
+  const [emailUser,  setEmailUser]  = useState('')
+  const [avatarUrl,  setAvatarUrl]  = useState<string | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [menuAberto, setMenuAberto] = useState(false)
 
   useEffect(() => { carregarDados() }, [])
 
@@ -83,11 +86,15 @@ export default function DashboardPage() {
 
     // 2. Perfil e fazenda em paralelo
     const [profileRes, fazRes] = await Promise.all([
-      supabase.from('profiles').select('nome').eq('id', user.id).single(),
+      supabase.from('profiles').select('nome, avatar_url').eq('id', user.id).single(),
       supabase.from('fazendas').select('id, nome, municipio, estado').eq('owner_id', user.id).single(),
     ])
 
-    if (profileRes.data) setNomeUser(profileRes.data.nome.split(' ')[0])
+    if (profileRes.data) {
+      setNomeUser(profileRes.data.nome.split(' ')[0])
+      setAvatarUrl(profileRes.data.avatar_url ?? null)
+    }
+    setEmailUser(user.email ?? '')
 
     // Só redireciona para onboarding se não houve erro e realmente não existe fazenda
     if (!fazRes.data && !fazRes.error) { router.push('/onboarding'); return }
@@ -244,20 +251,60 @@ export default function DashboardPage() {
             <p className="text-white/60 text-xs mt-0.5">{fazenda?.nome}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          {clima && fazenda && (
-            <button
-              onClick={() => window.open(getClimatempoUrl(fazenda.municipio, fazenda.estado), '_blank')}
-              className="text-right hover:opacity-80 transition"
-              title="Ver previsão completa no Climatempo"
-            >
-              <p className="text-white text-sm font-medium">{clima.icon} {clima.temp}°C</p>
-              <p className="text-white/60 text-xs">{clima.descricao}</p>
-            </button>
-          )}
-          <button onClick={handleLogout} className="text-white/60 hover:text-white text-xs transition">
-            Sair
+
+        {/* Avatar + dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setMenuAberto(v => !v)}
+            className="flex items-center gap-2 hover:opacity-80 transition"
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={nomeUser} className="w-8 h-8 rounded-full object-cover border-2 border-white/30"/>
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center">
+                <span className="text-white text-sm font-semibold">{nomeUser?.[0]?.toUpperCase() ?? '?'}</span>
+              </div>
+            )}
           </button>
+
+          {menuAberto && (
+            <>
+              {/* Overlay para fechar ao clicar fora */}
+              <div className="fixed inset-0 z-10" onClick={() => setMenuAberto(false)}/>
+              <div className="absolute right-0 top-10 z-20 w-56 bg-white rounded-xl shadow-lg border border-stone-200 overflow-hidden">
+                {/* Info do usuário */}
+                <div className="px-4 py-3 border-b border-stone-100">
+                  <p className="text-sm font-semibold text-stone-800 truncate">{nomeUser}</p>
+                  <p className="text-xs text-stone-400 truncate mt-0.5">{emailUser}</p>
+                </div>
+                {/* Ações */}
+                <div className="py-1">
+                  <a
+                    href="/dashboard/perfil"
+                    onClick={() => setMenuAberto(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition"
+                  >
+                    <span>👤</span> Meu perfil
+                  </a>
+                  <a
+                    href="/dashboard/fazenda"
+                    onClick={() => setMenuAberto(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition"
+                  >
+                    <span>🏡</span> Configurações da fazenda
+                  </a>
+                  <div className="border-t border-stone-100 mt-1 pt-1">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
+                    >
+                      <span>↩️</span> Sair
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
