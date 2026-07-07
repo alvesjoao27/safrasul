@@ -904,7 +904,7 @@ export default function AnimalPage() {
                 <GraficoPeso pontos={pontosPeso} />
               </div>
               {pontosPeso.length >= 2 && (
-                <div className="px-5 pb-4 grid grid-cols-3 gap-3 border-t border-stone-100 pt-3">
+                <div className="px-5 pb-4 grid grid-cols-4 gap-3 border-t border-stone-100 pt-3">
                   <div className="text-center">
                     <p className="text-xs text-stone-400">Entrada</p>
                     <p className="text-sm font-semibold text-stone-700">{pontosPeso[0].peso} kg</p>
@@ -913,11 +913,23 @@ export default function AnimalPage() {
                     <p className="text-xs text-stone-400">Atual</p>
                     <p className="text-sm font-semibold text-stone-700">{pontosPeso[pontosPeso.length - 1].peso} kg</p>
                   </div>
-                  <div className="text-center">
+                  <div className="text-center border-r border-stone-100">
                     <p className="text-xs text-stone-400">Ganho</p>
                     <p className={`text-sm font-semibold ${pontosPeso[pontosPeso.length - 1].peso - pontosPeso[0].peso >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                       {pontosPeso[pontosPeso.length - 1].peso - pontosPeso[0].peso >= 0 ? '+' : ''}
                       {(pontosPeso[pontosPeso.length - 1].peso - pontosPeso[0].peso).toFixed(1)} kg
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-stone-400">GMD</p>
+                    <p className="text-sm font-semibold text-amber-600">
+                      {(() => {
+                        const ultimo = pontosPeso[pontosPeso.length - 1]
+                        const penultimo = pontosPeso[pontosPeso.length - 2]
+                        const dias = (new Date(ultimo.data + 'T00:00:00').getTime() - new Date(penultimo.data + 'T00:00:00').getTime()) / 86400000
+                        const gmd = dias > 0 ? (ultimo.peso - penultimo.peso) / dias : null
+                        return gmd !== null ? `${gmd.toFixed(2)} kg/d` : '—'
+                      })()}
                     </p>
                   </div>
                 </div>
