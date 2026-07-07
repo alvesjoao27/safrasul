@@ -88,7 +88,10 @@ export default function DashboardPage() {
     ])
 
     if (profileRes.data) setNomeUser(profileRes.data.nome.split(' ')[0])
-    if (!fazRes.data)    { router.push('/onboarding'); return }
+
+    // Só redireciona para onboarding se não houve erro e realmente não existe fazenda
+    if (!fazRes.data && !fazRes.error) { router.push('/onboarding'); return }
+    if (!fazRes.data) { setLoading(false); return }
 
     const faz = fazRes.data
     setFazenda(faz)
