@@ -43,7 +43,7 @@ export default function CadastroPage() {
     })
 
     if (error) {
-      // E-mail já cadastrado
+      // E-mail já cadastradoo
       if (
         error.message?.toLowerCase().includes('already registered') ||
         error.message?.toLowerCase().includes('user already exists') ||
