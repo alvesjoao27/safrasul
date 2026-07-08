@@ -20,31 +20,15 @@ type Animal = {
 }
 
 type Indicadores = {
-  totalAnimais:    number
-  partosProximos:  { id: string; nome: string | null; brinco: string | null; data: string }[]
-  // corte
-  temCorte:        boolean
-  gmdMedioCorte:   number | null
-  // leite
-  temLeite:        boolean
-  taxaPrenhez:     number | null
-  iepMedio:        number | null
-  vacasLactacao:   number
+  totalAnimais:   number
+  partosProximos: { id: string; nome: string | null; brinco: string | null; data: string }[]
+  temCorte:       boolean
+  gmdMedioCorte:  number | null
+  temLeite:       boolean
+  taxaPrenhez:    number | null
+  iepMedio:       number | null
+  vacasLactacao:  number
 }
-
-const Logo = ({ size = 32 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
-    <circle cx="24" cy="24" r="24" fill="rgba(255,255,255,0.15)"/>
-    <line x1="18" y1="36" x2="28" y2="12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-    <circle cx="22" cy="26" r="2.5" fill="#fff"/>
-    <circle cx="20" cy="21" r="2.5" fill="#fff"/>
-    <circle cx="25" cy="17" r="2.5" fill="#fff"/>
-    <line x1="30" y1="36" x2="20" y2="12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-    <circle cx="26" cy="26" r="2.5" fill="#fff"/>
-    <circle cx="28" cy="21" r="2.5" fill="#fff"/>
-    <circle cx="23" cy="17" r="2.5" fill="#fff"/>
-  </svg>
-)
 
 function calcularIdade(dataNascimento: string): string {
   const nasc  = new Date(dataNascimento)
@@ -65,12 +49,11 @@ export default function PecuariaPage() {
   const router   = useRouter()
   const supabase = createClient()
 
-  const [animais,      setAnimais]      = useState<Animal[]>([])
-  const [indicadores,  setIndicadores]  = useState<Indicadores | null>(null)
-  const [loading,      setLoading]      = useState(true)
-  const [busca,        setBusca]        = useState('')
-  const [filtroSexo,   setFiltroSexo]   = useState<'todos' | 'M' | 'F'>('todos')
-  const [fazendaId,    setFazendaId]    = useState<string | null>(null)
+  const [animais,     setAnimais]     = useState<Animal[]>([])
+  const [indicadores, setIndicadores] = useState<Indicadores | null>(null)
+  const [loading,     setLoading]     = useState(true)
+  const [busca,       setBusca]       = useState('')
+  const [filtroSexo,  setFiltroSexo]  = useState<'todos' | 'M' | 'F'>('todos')
 
   useEffect(() => { carregarDados() }, [])
 
@@ -78,29 +61,17 @@ export default function PecuariaPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const { data: faz } = await supabase
-      .from('fazendas').select('id')
-      .eq('owner_id', user.id).single()
+    const { data: faz } = await supabase.from('fazendas').select('id').eq('owner_id', user.id).single()
     if (!faz) { router.push('/onboarding'); return }
 
-    setFazendaId(faz.id)
-
-    // Busca animais e eventos de pesagem em paralelo
     const [animaisRes, eventosRes] = await Promise.all([
-      supabase
-        .from('animais')
+      supabase.from('animais')
         .select('id, nome, brinco, sexo, raca, data_nascimento, foto_url, status, finalidade, data_parto_previsto, prenhez, lotes_animais(nome, especie)')
-        .eq('fazenda_id', faz.id)
-        .eq('status', 'ativo')
-        .is('deleted_at', null)
+        .eq('fazenda_id', faz.id).eq('status', 'ativo').is('deleted_at', null)
         .order('created_at', { ascending: false }),
-
-      supabase
-        .from('eventos_manejo')
+      supabase.from('eventos_manejo')
         .select('animal_id, data, peso_medio_kg, tipo')
-        .eq('fazenda_id', faz.id)
-        .in('tipo', ['pesagem', 'parto'])
-        .is('deleted_at', null)
+        .eq('fazenda_id', faz.id).in('tipo', ['pesagem', 'parto']).is('deleted_at', null)
         .order('data', { ascending: true }),
     ])
 
@@ -108,126 +79,83 @@ export default function PecuariaPage() {
     const eventosData = eventosRes.data ?? []
     setAnimais(animaisData)
 
-    // ── Calcular indicadores ──────────────────────────────────────────────────
     const hoje    = new Date()
     const em7dias = new Date(); em7dias.setDate(hoje.getDate() + 7)
     const hojeStr = hoje.toISOString().split('T')[0]
     const em7Str  = em7dias.toISOString().split('T')[0]
 
-    // Partos próximos (7 dias)
     const partosProximos = animaisData
       .filter(a => a.data_parto_previsto && a.data_parto_previsto >= hojeStr && a.data_parto_previsto <= em7Str)
       .map(a => ({ id: a.id, nome: a.nome, brinco: a.brinco, data: a.data_parto_previsto }))
-      .sort((a, b) => a.data.localeCompare(b.data))
+      .sort((a: any, b: any) => a.data.localeCompare(b.data))
 
-    // Finalidades presentes
     const temCorte = animaisData.some(a => a.finalidade === 'corte' || a.finalidade === 'dupla_aptidao')
     const temLeite = animaisData.some(a => a.finalidade === 'leite' || a.finalidade === 'dupla_aptidao')
 
-    // GMD médio (corte/dupla) — últimas 2 pesagens por animal
     let gmdMedioCorte: number | null = null
     if (temCorte) {
-      const animaisCorte = animaisData
-        .filter(a => a.finalidade === 'corte' || a.finalidade === 'dupla_aptidao')
-        .map(a => a.id)
-
       const gmds: number[] = []
-      for (const animalId of animaisCorte) {
-        const pesagens = eventosData
-          .filter(e => e.animal_id === animalId && e.tipo === 'pesagem' && e.peso_medio_kg)
-          .slice(-2)
-        if (pesagens.length === 2) {
-          const dias = (new Date(pesagens[1].data).getTime() - new Date(pesagens[0].data).getTime()) / 86400000
-          if (dias > 0) {
-            const gmd = (pesagens[1].peso_medio_kg - pesagens[0].peso_medio_kg) / dias
-            if (gmd > 0) gmds.push(gmd)
-          }
+      for (const a of animaisData.filter(a => a.finalidade === 'corte' || a.finalidade === 'dupla_aptidao')) {
+        const ps = eventosData.filter(e => e.animal_id === a.id && e.tipo === 'pesagem' && e.peso_medio_kg).slice(-2)
+        if (ps.length === 2) {
+          const dias = (new Date(ps[1].data).getTime() - new Date(ps[0].data).getTime()) / 86400000
+          if (dias > 0) { const g = (ps[1].peso_medio_kg - ps[0].peso_medio_kg) / dias; if (g > 0) gmds.push(g) }
         }
       }
       gmdMedioCorte = gmds.length > 0 ? gmds.reduce((s, v) => s + v, 0) / gmds.length : null
     }
 
-    // Taxa de prenhez (leite/dupla) — vacas prenhes / total fêmeas ativas
-    let taxaPrenhez: number | null = null
-    let iepMedio:    number | null = null
-    let vacasLactacao = 0
+    let taxaPrenhez: number | null = null, iepMedio: number | null = null, vacasLactacao = 0
     if (temLeite) {
-      const femeasLeite = animaisData.filter(a =>
-        (a.finalidade === 'leite' || a.finalidade === 'dupla_aptidao') && a.sexo === 'F'
-      )
-      const prenhes = femeasLeite.filter(a => a.prenhez === 'positivo').length
-      taxaPrenhez = femeasLeite.length > 0 ? Math.round((prenhes / femeasLeite.length) * 100) : null
-
-      // Vacas em lactação — tiveram parto nos últimos 305 dias
+      const femeas = animaisData.filter(a => (a.finalidade === 'leite' || a.finalidade === 'dupla_aptidao') && a.sexo === 'F')
+      taxaPrenhez = femeas.length > 0 ? Math.round((femeas.filter(a => a.prenhez === 'positivo').length / femeas.length) * 100) : null
       const h305 = new Date(); h305.setDate(hoje.getDate() - 305)
       const h305Str = h305.toISOString().split('T')[0]
-      const partosRecentes = new Set(
-        eventosData
-          .filter(e => e.tipo === 'parto' && e.data >= h305Str)
-          .map(e => e.animal_id)
-      )
-      vacasLactacao = femeasLeite.filter(a => partosRecentes.has(a.id)).length
-
-      // IEP médio — intervalo entre partos consecutivos por animal
+      const partosRec = new Set(eventosData.filter(e => e.tipo === 'parto' && e.data >= h305Str).map(e => e.animal_id))
+      vacasLactacao = femeas.filter(a => partosRec.has(a.id)).length
       const ieps: number[] = []
-      for (const animal of femeasLeite) {
-        const partos = eventosData
-          .filter(e => e.animal_id === animal.id && e.tipo === 'parto')
-          .map(e => e.data)
-          .sort()
-        for (let i = 1; i < partos.length; i++) {
-          const dias = (new Date(partos[i]).getTime() - new Date(partos[i - 1]).getTime()) / 86400000
-          if (dias > 0) ieps.push(dias)
+      for (const a of femeas) {
+        const ps = eventosData.filter(e => e.animal_id === a.id && e.tipo === 'parto').map(e => e.data).sort()
+        for (let i = 1; i < ps.length; i++) {
+          const d = (new Date(ps[i]).getTime() - new Date(ps[i-1]).getTime()) / 86400000
+          if (d > 0) ieps.push(d)
         }
       }
       iepMedio = ieps.length > 0 ? Math.round(ieps.reduce((s, v) => s + v, 0) / ieps.length) : null
     }
 
-    setIndicadores({
-      totalAnimais: animaisData.length,
-      partosProximos,
-      temCorte,
-      gmdMedioCorte,
-      temLeite,
-      taxaPrenhez,
-      iepMedio,
-      vacasLactacao,
-    })
-
+    setIndicadores({ totalAnimais: animaisData.length, partosProximos, temCorte, gmdMedioCorte, temLeite, taxaPrenhez, iepMedio, vacasLactacao })
     setLoading(false)
   }
 
   const animaisFiltrados = animais.filter(a => {
     const termo = busca.toLowerCase()
-    const bate  = !busca ||
-      a.nome?.toLowerCase().includes(termo) ||
-      a.brinco?.toLowerCase().includes(termo) ||
-      a.raca?.toLowerCase().includes(termo)
-    const sexoOk = filtroSexo === 'todos' || a.sexo === filtroSexo
-    return bate && sexoOk
+    const bate  = !busca || a.nome?.toLowerCase().includes(termo) || a.brinco?.toLowerCase().includes(termo) || a.raca?.toLowerCase().includes(termo)
+    return bate && (filtroSexo === 'todos' || a.sexo === filtroSexo)
   })
 
   if (loading) return (
-    <div className="min-h-screen bg-[#F5F2EB] flex items-center justify-center">
-      <p className="text-sm text-stone-500">Carregando...</p>
+    <div className="min-h-screen bg-[#F0EDE6] flex items-center justify-center">
+      <p className="text-sm text-stone-400 font-medium">Carregando...</p>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#F5F2EB]">
+    <div className="min-h-screen bg-[#F0EDE6]">
 
-      <header className="bg-[#2D5016] px-4 py-4 flex items-center justify-between">
+      {/* ── Header ── */}
+      <header className="bg-[#2D5016] px-4 py-3.5 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className="text-white/70 hover:text-white transition">←</button>
-          <Logo size={28} />
+          <button onClick={() => router.push('/dashboard')}
+            className="text-white/60 hover:text-white transition text-lg leading-none">←</button>
           <div>
-            <p className="text-white font-semibold text-sm leading-none">Pecuária</p>
-            <p className="text-white/60 text-xs mt-0.5">{animais.length} animais cadastrados</p>
+            <p className="text-white font-semibold text-sm leading-tight">Pecuária</p>
+            <p className="text-white/50 text-[11px] leading-tight">{animais.length} animais cadastrados</p>
           </div>
         </div>
         <button
           onClick={() => router.push('/dashboard/pecuaria/novo')}
-          className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition"
+          className="bg-white/15 hover:bg-white/25 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition border border-white/20"
         >
           + Novo animal
         </button>
@@ -235,127 +163,110 @@ export default function PecuariaPage() {
 
       <main className="max-w-2xl mx-auto px-4 py-5 space-y-4">
 
-        {/* ── Card de indicadores ── */}
+        {/* ── Indicadores do rebanho ── */}
         {indicadores && indicadores.totalAnimais > 0 && (
-          <section className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-            <div className="bg-amber-500 px-5 py-3">
-              <p className="text-white font-semibold text-sm">📊 Indicadores do rebanho</p>
-            </div>
+          <section className="bg-[#FAFAF8] rounded-2xl border border-[#E5E0D8] overflow-hidden">
+            <div className="h-[3px] bg-gradient-to-r from-[#2D5016] to-[#5A8A30]"/>
+            <div className="px-4 py-4">
+              <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-3">
+                Indicadores do rebanho
+              </p>
 
-            {/* Indicadores comuns */}
-            <div className="px-5 pt-4 pb-2 grid grid-cols-2 gap-3">
-              {/* Total de animais */}
-              <button
-                onClick={() => {}}
-                className="bg-stone-50 rounded-xl p-3 text-left hover:bg-stone-100 transition"
-              >
-                <p className="text-2xl font-bold text-stone-800">{indicadores.totalAnimais}</p>
-                <p className="text-xs text-stone-500 mt-0.5">Animais ativos</p>
-              </button>
+              {/* Comuns */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="bg-[#F0EDE6] rounded-xl p-3">
+                  <p className="text-2xl font-bold text-[#1C2B0E] leading-none">{indicadores.totalAnimais}</p>
+                  <p className="text-[10px] font-medium text-stone-400 mt-1.5 uppercase tracking-wide">Animais ativos</p>
+                </div>
+                <button
+                  onClick={() => { const el = document.getElementById('partos-proximos'); el?.scrollIntoView({ behavior: 'smooth' }) }}
+                  className={`rounded-xl p-3 text-left transition ${indicadores.partosProximos.length > 0 ? 'bg-[#FEF3C7] hover:bg-[#fde68a]' : 'bg-[#F0EDE6]'}`}
+                >
+                  <p className={`text-2xl font-bold leading-none ${indicadores.partosProximos.length > 0 ? 'text-[#D97706]' : 'text-[#1C2B0E]'}`}>
+                    {indicadores.partosProximos.length}
+                  </p>
+                  <p className="text-[10px] font-medium text-stone-400 mt-1.5 uppercase tracking-wide">Partos em 7 dias</p>
+                </button>
+              </div>
 
-              {/* Partos próximos */}
-              <button
-                onClick={() => {
-                  const el = document.getElementById('partos-proximos')
-                  el?.scrollIntoView({ behavior: 'smooth' })
-                }}
-                className={`rounded-xl p-3 text-left transition ${
-                  indicadores.partosProximos.length > 0
-                    ? 'bg-amber-50 hover:bg-amber-100'
-                    : 'bg-stone-50 hover:bg-stone-100'
-                }`}
-              >
-                <p className={`text-2xl font-bold ${indicadores.partosProximos.length > 0 ? 'text-amber-600' : 'text-stone-800'}`}>
-                  {indicadores.partosProximos.length}
-                </p>
-                <p className="text-xs text-stone-500 mt-0.5">Partos em 7 dias</p>
-              </button>
-            </div>
-
-            {/* Indicadores de corte */}
-            {indicadores.temCorte && (
-              <div className="px-5 py-3 border-t border-stone-100">
-                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🥩 Corte</p>
-                <div className="grid grid-cols-1 gap-2">
-                  <div className="bg-stone-50 rounded-xl p-3">
-                    <p className="text-xl font-bold text-stone-800">
+              {/* Corte */}
+              {indicadores.temCorte && (
+                <div className="border-t border-[#E5E0D8] pt-3 mb-3">
+                  <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-2">🥩 Corte</p>
+                  <div className="bg-[#F0EDE6] rounded-xl p-3">
+                    <p className="text-xl font-bold text-[#1C2B0E] leading-none">
                       {indicadores.gmdMedioCorte !== null ? `${indicadores.gmdMedioCorte.toFixed(2)} kg/dia` : '—'}
                     </p>
-                    <p className="text-xs text-stone-500 mt-0.5">GMD médio do rebanho</p>
+                    <p className="text-[10px] font-medium text-stone-400 mt-1.5 uppercase tracking-wide">GMD médio do rebanho</p>
                     {indicadores.gmdMedioCorte === null && (
-                      <p className="text-xs text-stone-400 mt-1">Registre ao menos 2 pesagens por animal</p>
+                      <p className="text-[10px] text-stone-400 mt-1">Registre ao menos 2 pesagens por animal</p>
                     )}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Indicadores de leite */}
-            {indicadores.temLeite && (
-              <div className="px-5 py-3 border-t border-stone-100">
-                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">🥛 Leite</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-stone-50 rounded-xl p-3">
-                    <p className="text-xl font-bold text-stone-800">
-                      {indicadores.taxaPrenhez !== null ? `${indicadores.taxaPrenhez}%` : '—'}
-                    </p>
-                    <p className="text-xs text-stone-500 mt-0.5">Taxa de prenhez</p>
-                  </div>
-                  <div className="bg-stone-50 rounded-xl p-3">
-                    <p className="text-xl font-bold text-stone-800">
-                      {indicadores.iepMedio !== null ? `${indicadores.iepMedio}d` : '—'}
-                    </p>
-                    <p className="text-xs text-stone-500 mt-0.5">IEP médio</p>
-                  </div>
-                  <div className="bg-stone-50 rounded-xl p-3">
-                    <p className="text-xl font-bold text-stone-800">{indicadores.vacasLactacao}</p>
-                    <p className="text-xs text-stone-500 mt-0.5">Em lactação</p>
+              {/* Leite */}
+              {indicadores.temLeite && (
+                <div className="border-t border-[#E5E0D8] pt-3 mb-3">
+                  <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-2">🥛 Leite</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { v: indicadores.taxaPrenhez !== null ? `${indicadores.taxaPrenhez}%` : '—', l: 'Taxa prenhez' },
+                      { v: indicadores.iepMedio !== null ? `${indicadores.iepMedio}d` : '—', l: 'IEP médio' },
+                      { v: indicadores.vacasLactacao, l: 'Em lactação' },
+                    ].map(({ v, l }) => (
+                      <div key={l} className="bg-[#F0EDE6] rounded-xl p-3">
+                        <p className="text-lg font-bold text-[#1C2B0E] leading-none">{v}</p>
+                        <p className="text-[10px] font-medium text-stone-400 mt-1.5 uppercase tracking-wide leading-tight">{l}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Lista de partos próximos */}
-            {indicadores.partosProximos.length > 0 && (
-              <div id="partos-proximos" className="px-5 py-3 border-t border-amber-100 bg-amber-50">
-                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">🐄 Partos previstos nos próximos 7 dias</p>
-                <div className="space-y-2">
-                  {indicadores.partosProximos.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => router.push(`/dashboard/pecuaria/${p.id}`)}
-                      className="w-full flex items-center justify-between bg-white rounded-lg px-3 py-2.5 hover:bg-amber-50 transition border border-amber-100"
-                    >
-                      <p className="text-sm font-medium text-stone-800">
-                        {p.nome ?? p.brinco ?? 'Animal'}
-                        {p.brinco && p.nome && <span className="text-stone-400 font-normal"> · #{p.brinco}</span>}
-                      </p>
-                      <p className="text-xs text-amber-600 font-semibold">{formatarData(p.data)}</p>
-                    </button>
-                  ))}
+              {/* Partos próximos */}
+              {indicadores.partosProximos.length > 0 && (
+                <div id="partos-proximos" className="border-t border-[#E5E0D8] pt-3">
+                  <p className="text-[10px] font-semibold text-[#D97706] uppercase tracking-widest mb-2">🐄 Partos previstos — próximos 7 dias</p>
+                  <div className="space-y-1.5">
+                    {indicadores.partosProximos.map(p => (
+                      <button key={p.id} onClick={() => router.push(`/dashboard/pecuaria/${p.id}`)}
+                        className="w-full flex items-center justify-between bg-[#FEF3C7] rounded-xl px-3 py-2.5
+                          hover:bg-[#fde68a] transition border border-[#D97706]/20">
+                        <p className="text-sm font-semibold text-[#1C2B0E]">
+                          {p.nome ?? p.brinco ?? 'Animal'}
+                          {p.brinco && p.nome && <span className="text-stone-400 font-normal"> · #{p.brinco}</span>}
+                        </p>
+                        <p className="text-xs text-[#D97706] font-bold">{formatarData(p.data)}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </section>
         )}
 
-        {/* Busca e filtros */}
+        {/* ── Busca e filtros ── */}
         <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Buscar por nome, brinco ou raça..."
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-            className="flex-1 rounded-lg border border-stone-300 px-3.5 py-2.5 text-sm
-              text-stone-900 placeholder:text-stone-400 outline-none
-              focus:ring-2 focus:ring-[#2D5016]/25 focus:border-[#2D5016] bg-white"
-          />
+          <div className="flex-1 relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="Buscar por nome, brinco ou raça..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="w-full rounded-xl border border-[#E5E0D8] pl-9 pr-4 py-2.5 text-sm
+                text-[#1C2B0E] placeholder:text-stone-400 outline-none bg-[#FAFAF8]
+                focus:ring-2 focus:ring-[#2D5016]/20 focus:border-[#2D5016]"
+            />
+          </div>
           <select
             value={filtroSexo}
             onChange={e => setFiltroSexo(e.target.value as any)}
-            className="rounded-lg border border-stone-300 px-3 py-2.5 text-sm
-              text-stone-700 outline-none focus:ring-2 focus:ring-[#2D5016]/25
-              focus:border-[#2D5016] bg-white"
+            className="rounded-xl border border-[#E5E0D8] px-3 py-2.5 text-sm font-medium
+              text-[#1C2B0E] outline-none bg-[#FAFAF8]
+              focus:ring-2 focus:ring-[#2D5016]/20 focus:border-[#2D5016]"
           >
             <option value="todos">Todos</option>
             <option value="M">Machos</option>
@@ -363,33 +274,32 @@ export default function PecuariaPage() {
           </select>
         </div>
 
-        {/* Estado vazio */}
+        {/* ── Estado vazio ── */}
         {animais.length === 0 && (
-          <div className="bg-white rounded-2xl border border-dashed border-stone-300 p-10 text-center">
+          <div className="bg-[#FAFAF8] rounded-2xl border border-dashed border-[#E5E0D8] p-10 text-center">
             <p className="text-4xl mb-3">🐄</p>
-            <h2 className="text-base font-semibold text-stone-700 mb-1">Nenhum animal cadastrado</h2>
+            <h2 className="text-base font-semibold text-[#1C2B0E] mb-1">Nenhum animal cadastrado</h2>
             <p className="text-sm text-stone-400 mb-5">Cadastre o primeiro animal da sua propriedade</p>
-            <button
-              onClick={() => router.push('/dashboard/pecuaria/novo')}
-              className="bg-[#2D5016] text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-[#3a6620] transition"
-            >
+            <button onClick={() => router.push('/dashboard/pecuaria/novo')}
+              className="bg-[#2D5016] text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-[#3D6B1F] transition">
               + Cadastrar primeiro animal
             </button>
           </div>
         )}
 
-        {/* Lista de animais */}
+        {/* ── Lista de animais ── */}
         {animaisFiltrados.length > 0 && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2.5">
             {animaisFiltrados.map(animal => (
               <button
                 key={animal.id}
                 onClick={() => router.push(`/dashboard/pecuaria/${animal.id}`)}
-                className="bg-white rounded-xl border border-stone-200 overflow-hidden
-                  text-left hover:shadow-md hover:border-amber-300 transition active:scale-95
-                  flex items-center gap-4 p-3"
+                className="bg-[#FAFAF8] rounded-2xl border border-[#E5E0D8] overflow-hidden
+                  text-left hover:shadow-md hover:border-[#2D5016]/30 transition active:scale-[.99]
+                  flex items-center gap-3 p-3"
               >
-                <div className="w-20 h-20 rounded-xl bg-amber-50 overflow-hidden shrink-0 relative">
+                {/* Foto */}
+                <div className="w-[68px] h-[68px] rounded-xl bg-[#EBF2E3] overflow-hidden shrink-0 relative">
                   {animal.foto_url ? (
                     <img src={animal.foto_url} alt={animal.nome ?? 'Animal'} className="w-full h-full object-cover"/>
                   ) : (
@@ -397,40 +307,71 @@ export default function PecuariaPage() {
                       <span className="text-3xl">{animal.sexo === 'M' ? '🐂' : '🐄'}</span>
                     </div>
                   )}
-                  <span className={`absolute top-1 right-1 text-xs font-bold px-1 py-0.5 rounded-full
+                  {/* Badge sexo */}
+                  <span className={`absolute bottom-1 right-1 text-[9px] font-bold px-1 py-0.5 rounded-full
                     ${animal.sexo === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                    {animal.sexo === 'M' ? 'M' : 'F'}
+                    {animal.sexo === 'M' ? '♂' : '♀'}
                   </span>
                 </div>
+
+                {/* Dados */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-stone-800 truncate">
-                    {animal.nome ?? animal.brinco ?? '—'}
-                  </p>
-                  {animal.brinco && animal.nome && (
-                    <p className="text-xs text-stone-400">#{animal.brinco}</p>
-                  )}
-                  {animal.raca && (
-                    <p className="text-xs text-stone-500 mt-0.5">{animal.raca}</p>
-                  )}
-                  {animal.data_nascimento && (
-                    <p className="text-xs text-amber-600 mt-1 font-medium">
-                      {calcularIdade(animal.data_nascimento)}
-                    </p>
-                  )}
-                  <span className={`inline-block mt-1 text-xs px-1.5 py-0.5 rounded-full font-medium
-                    ${animal.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
-                    {animal.status}
-                  </span>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-[#1C2B0E] truncate leading-tight">
+                        {animal.nome ?? animal.brinco ?? '—'}
+                      </p>
+                      {animal.brinco && animal.nome && (
+                        <p className="text-[11px] text-stone-400 leading-tight">#{animal.brinco}</p>
+                      )}
+                    </div>
+                    {/* Finalidade badge */}
+                    {animal.finalidade && (
+                      <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full
+                        ${ animal.finalidade === 'corte' ? 'bg-[#FEF3C7] text-[#92400E]'
+                          : animal.finalidade === 'leite' ? 'bg-blue-50 text-blue-700'
+                          : 'bg-purple-50 text-purple-700'}`}>
+                        {animal.finalidade === 'corte' ? '🥩' : animal.finalidade === 'leite' ? '🥛' : '⚡'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    {animal.raca && (
+                      <span className="text-[11px] text-stone-500">{animal.raca}</span>
+                    )}
+                    {animal.raca && animal.data_nascimento && (
+                      <span className="text-stone-300 text-[10px]">·</span>
+                    )}
+                    {animal.data_nascimento && (
+                      <span className="text-[11px] font-semibold text-[#D97706]">
+                        {calcularIdade(animal.data_nascimento)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full
+                      ${animal.status === 'ativo' ? 'bg-[#EBF2E3] text-[#2D5016]' : 'bg-stone-100 text-stone-500'}`}>
+                      {animal.status}
+                    </span>
+                    {animal.prenhez === 'positivo' && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-pink-700">
+                        gestante
+                      </span>
+                    )}
+                  </div>
                 </div>
+
                 <span className="text-stone-300 text-lg shrink-0">›</span>
               </button>
             ))}
           </div>
         )}
 
-        {/* Sem resultados na busca */}
+        {/* ── Sem resultados ── */}
         {animais.length > 0 && animaisFiltrados.length === 0 && (
-          <div className="bg-white rounded-xl border border-stone-200 p-8 text-center">
+          <div className="bg-[#FAFAF8] rounded-xl border border-[#E5E0D8] p-8 text-center">
             <p className="text-sm text-stone-400">Nenhum animal encontrado para "{busca}"</p>
           </div>
         )}
